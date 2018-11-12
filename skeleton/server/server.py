@@ -19,7 +19,7 @@ import requests
 try:
     app = Bottle()
 
-    board = {"0":"nothing", "1":"Hejsan"}
+    board = {}
 
 
 
@@ -41,7 +41,7 @@ try:
         global board, node_id
         success = False
         try:
-            board = modified_element
+            board[str(entry_sequence)] = modified_element
             success = True
         except Exception as e:
             print e
@@ -51,7 +51,7 @@ try:
         global board, node_id
         success = False
         try:
-            board = ""
+            del board[str(entry_sequence)]
             success = True
         except Exception as e:
             print e
@@ -114,7 +114,8 @@ try:
             print node_id
             new_entry = request.forms.get('entry')
 
-            add_new_element_to_store(len(board), new_entry) # you might want to change None here
+            node_id = len(board) + 1
+            add_new_element_to_store(node_id, new_entry) # you might want to change None here
             thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(node_id), new_entry, 'POST'))
             thread.deamon = True
             thread.start()
@@ -138,12 +139,12 @@ try:
         try:
             if(deleteStr == "delete=1"): 
                 action = "delete" 
-                delete_element_from_store(None)
+                delete_element_from_store(element_id)
             if(deleteStr == "delete=0"):
                 action = "modify"
-                modify_element_in_store(None, entry)
+                modify_element_in_store(element_id, entry)
 
-            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(node_id)), entry))
+            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(element_id)), entry))
             t.deamon = True
             t.start()
             t.join()
@@ -160,13 +161,13 @@ try:
         entry = request.body.read()
 
         if(action == "delete"):
-            delete_element_from_store(None)
+            return delete_element_from_store(element_id)
 
         if(action == "modify"):
-            modify_element_in_store(None, entry)
+            return modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            add_new_element_to_store(None, entry)
+            return add_new_element_to_store(element_id, entry)
        
         
     # ------------------------------------------------------------------------------------------------------
