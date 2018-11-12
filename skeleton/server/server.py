@@ -13,12 +13,14 @@ import argparse
 from threading import Thread
 
 from bottle import Bottle, run, request, template
+from threading import Thread
 import requests
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
 
-    board = "nothing" 
+    board = "nothing yet" 
+
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -70,7 +72,8 @@ try:
             else:
                 print 'Non implemented feature!'
             # result is in res.text or res.json()
-            print(res.text)
+            print("line 73 " + res.text)
+            print(str(payload))
             if res.status_code == 200:
                 success = True
         except Exception as e:
@@ -78,11 +81,13 @@ try:
         return success
 
     def propagate_to_vessels(path, payload = None, req = 'POST'):
+
         global vessel_list, node_id
 
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
                 success = contact_vessel(vessel_ip, path, payload, req)
+
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
@@ -105,16 +110,18 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
-        '''Adds a new element to the board
-        Called directly when a user is doing a POST request on /board'''
+        
         global board, node_id
         try:
             new_entry = request.forms.get('entry')
-            add_new_element_to_store(None, new_entry) # you might want to change None here
-            # you should propagate something
-            # Please use threads to avoid blocking
-            #thread = Thread(target=???,args=???)
-            # you should create the thread as a deamon
+            add_new_element_to_store(None, new_entry) 
+            t = Thread(target = propagate_to_vessels,args =(('/propagate/add/'+str(node_id)), new_entry ))
+            t.deamon = True
+            t.start()
+            t.join()
+
+
+
             return True
         except Exception as e:
             print e
@@ -122,13 +129,52 @@ try:
 
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
-        # todo
-        pass
+        global board, node_id
+
+        action = "" #action that determines modify or delte to be sent to propagate_to_vessels()
+
+        body = request.body.read() 
+        entryStr,deleteStr = body.split("&") #splits entry=entry&delete=1 into two strings
+        x,entry = entryStr.split("=") #splits entry=entry at =, x is never used only a temporary variable
+
+        try:
+            if(deleteStr == "delete=1"): 
+                action = "delete" 
+                delete_element_from_store(None)
+            if(deleteStr == "delete=0"):
+                action = "modify"
+                modify_element_in_store(None, entry)
+
+            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(node_id)), entry))
+            t.deamon = True
+            t.start()
+            t.join()
+
+            return True
+        except Exception as e:
+            print e
+        return False
+        
+
+
+    
+    
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
         # todo
-        pass
+
+        entry = request.body.read()
+
+        if(action == "delete"):
+            delete_element_from_store(None)
+
+        if(action == "modify"):
+            modify_element_in_store(None, entry)
+
+        if(action == "add"):
+            add_new_element_to_store(None, entry)
+       
         
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
