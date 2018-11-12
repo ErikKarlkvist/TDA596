@@ -19,7 +19,7 @@ import requests
 try:
     app = Bottle()
 
-    board = "nothing yet" 
+    board = {"0":"nothing", "1":"Hejsan"}
 
 
 
@@ -31,7 +31,7 @@ try:
         global board, node_id
         success = False
         try:
-            board = element
+            board[str(entry_sequence)] = element
             success = True
         except Exception as e:
             print e
@@ -72,8 +72,6 @@ try:
             else:
                 print 'Non implemented feature!'
             # result is in res.text or res.json()
-            print("line 73 " + res.text)
-            print(str(payload))
             if res.status_code == 200:
                 success = True
         except Exception as e:
@@ -100,35 +98,35 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()), members_name_string='YOUR NAME')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Eli Knoph & Erik Karlkvist')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print board
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted({"0":board,}.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
         
         global board, node_id
         try:
+            print node_id
             new_entry = request.forms.get('entry')
-            add_new_element_to_store(None, new_entry) 
-            t = Thread(target = propagate_to_vessels,args =(('/propagate/add/'+str(node_id)), new_entry ))
-            t.deamon = True
-            t.start()
-            t.join()
 
+            add_new_element_to_store(len(board), new_entry) # you might want to change None here
+            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(node_id), new_entry, 'POST'))
+            thread.deamon = True
+            thread.start()
+            return "Latest entry: " + new_entry 
 
-
-            return True
         except Exception as e:
             print e
         return False
 
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
+
         global board, node_id
 
         action = "" #action that determines modify or delte to be sent to propagate_to_vessels()
@@ -156,13 +154,8 @@ try:
         return False
         
 
-
-    
-    
-
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
-        # todo
 
         entry = request.body.read()
 
