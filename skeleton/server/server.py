@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import argparse
+import random
 from threading import Thread
 
 from bottle import Bottle, run, request, template
@@ -113,10 +114,11 @@ try:
         try:
             print node_id
             new_entry = request.forms.get('entry')
-
-            node_id = len(board) + 1
-            add_new_element_to_store(node_id, new_entry) # you might want to change None here
-            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(node_id), new_entry, 'POST'))
+            print("generating id")
+            element_id = generate_id()
+            print(node_id)
+            add_new_element_to_store(element_id, new_entry) # you might want to change None here
+            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(element_id), new_entry, 'POST'))
             thread.deamon = True
             thread.start()
             return "Latest entry: " + new_entry 
@@ -132,24 +134,23 @@ try:
 
         action = "" #action that determines modify or delte to be sent to propagate_to_vessels()
 
-        body = request.body.read() 
-        entryStr,deleteStr = body.split("&") #splits entry=entry&delete=1 into two strings
-        x,entry = entryStr.split("=") #splits entry=entry at =, x is never used only a temporary variable
+        entryStr = request.forms.get('entry')
+        deleteStr = request.forms.get('delete')
+
 
         try:
-            if(deleteStr == "delete=1"): 
+            if(deleteStr == "1"): 
                 action = "delete" 
                 delete_element_from_store(element_id)
-            if(deleteStr == "delete=0"):
+            if(deleteStr == "0"):
                 action = "modify"
-                modify_element_in_store(element_id, entry)
+                modify_element_in_store(element_id, entryStr)
 
-            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(element_id)), entry))
+            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(element_id)), entryStr))
             t.deamon = True
             t.start()
-            t.join()
 
-            return True
+            return "Action successfull"
         except Exception as e:
             print e
         return False
@@ -161,14 +162,28 @@ try:
         entry = request.body.read()
 
         if(action == "delete"):
-            return delete_element_from_store(element_id)
+            delete_element_from_store(element_id)
 
         if(action == "modify"):
-            return modify_element_in_store(element_id, entry)
+            modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            return add_new_element_to_store(element_id, entry)
-       
+            add_new_element_to_store(element_id, entry)
+
+        return "Propagation successfull"
+    
+    def generate_id():
+        global board
+        id = 0
+        rs = (len(vessel_list)+1) #random start (should be higher than number of vessel to avoid using vessel id)
+        re = 10000001 #random end
+        if(len(board) == 0): #if board has length 0, just set random number
+            id = random.randint(rs,re)
+        else:
+            id = board.keys()[0] #access first key in board just to have a key that already exist in while loop
+            while(id in board): #if id is in board, retry until it's not
+                id = random.randint(rs,re)
+        return id
         
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
