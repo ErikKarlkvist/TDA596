@@ -99,7 +99,7 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Eli Knoph & Erik Karlkvist')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Eli Knoph & Erik Karlkvist') 
 
     @app.get('/board')
     def get_board():
@@ -110,18 +110,15 @@ try:
     @app.post('/board')
     def client_add_received():
         
-        global board, node_id
+        global board
         try:
-            print node_id
             new_entry = request.forms.get('entry')
-            print("generating id")
             element_id = generate_id()
-            print(node_id)
-            add_new_element_to_store(element_id, new_entry) # you might want to change None here
+            add_new_element_to_store(element_ids, new_entry) # you might want to change None here
             thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(element_id), new_entry, 'POST'))
             thread.deamon = True
             thread.start()
-            return "Latest entry: " + new_entry 
+            return "Latest entry: " + new_entry #Returning true gives a weird error so we return a describing string instead
 
         except Exception as e:
             print e
@@ -132,9 +129,9 @@ try:
 
         global board, node_id
 
-        action = "" #action that determines modify or delte to be sent to propagate_to_vessels()
+        action = "" #action that determines modify or delete to be sent to propagate_to_vessels()
 
-        entryStr = request.forms.get('entry')
+        entryStr = request.forms.get('entry') #used 'forms' to get the values of entry and delete
         deleteStr = request.forms.get('delete')
 
 
@@ -142,6 +139,7 @@ try:
             if(deleteStr == "1"): 
                 action = "delete" 
                 delete_element_from_store(element_id)
+
             if(deleteStr == "0"):
                 action = "modify"
                 modify_element_in_store(element_id, entryStr)
@@ -150,7 +148,7 @@ try:
             t.deamon = True
             t.start()
 
-            return "Action successfull"
+            return "Action successfull" #Returning true gives a weird error so we return a describing string instead
         except Exception as e:
             print e
         return False
@@ -162,20 +160,19 @@ try:
         entry = request.body.read()
 
         if(action == "delete"):
-            delete_element_from_store(element_id)
+            return delete_element_from_store(element_id)
 
         if(action == "modify"):
-            modify_element_in_store(element_id, entry)
+            return modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            add_new_element_to_store(element_id, entry)
+            return add_new_element_to_store(element_id, entry)
 
-        return "Propagation successfull"
     
     def generate_id():
         global board
         id = 0
-        rs = (len(vessel_list)+1) #random start (should be higher than number of vessel to avoid using vessel id)
+        rs = (len(vessel_list)+1) # A start that is higher than the amount of vessels to avoid collisions
         re = 10000001 #random end
         if(len(board) == 0): #if board has length 0, just set random number
             id = random.randint(rs,re)
