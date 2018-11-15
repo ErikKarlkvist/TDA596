@@ -11,6 +11,7 @@ import time
 import json
 import argparse
 import random
+import time
 from threading import Thread
 
 from bottle import Bottle, run, request, template
@@ -99,7 +100,7 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='Eli Knoph & Erik Karlkvist') 
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se') 
 
     @app.get('/board')
     def get_board():
@@ -113,8 +114,9 @@ try:
         global board
         try:
             new_entry = request.forms.get('entry')
-            element_id = generate_id()
-            add_new_element_to_store(element_ids, new_entry) # you might want to change None here
+            element_id = int(round(time.time()*1000000))
+            #generate_id()
+            add_new_element_to_store(element_id, new_entry) # you might want to change None here
             thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(element_id), new_entry, 'POST'))
             thread.deamon = True
             thread.start()
