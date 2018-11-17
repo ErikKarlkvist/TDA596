@@ -1,0 +1,5 @@
+Hi
+
+We are group 13 and this is our demo for task 1. We will start by showing that we can submit post to our blackboard from any blackboard. Here you can see that from vessel 1 we can type "Hello" and it shows up on all the other boards aswell. We can go into vessel 3 and submit here and also move to 8 and submit, and each one shows up on all boards. 
+
+The id of the entries are assigned to be the current microsecond of the system clock. We hade some different ideas, such as using milliseconds. However, this did not work since if you send a lot of entries at the same time they override each other and doesn't display all entries. We also tried random numbers, but then they were completely out of order, but it did work.  

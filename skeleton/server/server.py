@@ -14,7 +14,7 @@ import random
 import time
 from threading import Thread
 
-from bottle import Bottle, run, request, template
+from bottle import Bottle, run, request, template, HTTPResponse
 from threading import Thread
 import requests
 # ------------------------------------------------------------------------------------------------------
@@ -74,6 +74,7 @@ try:
             else:
                 print 'Non implemented feature!'
             # result is in res.text or res.json()
+            print(res)
             if res.status_code == 200:
                 success = True
         except Exception as e:
@@ -162,14 +163,13 @@ try:
         entry = request.body.read()
 
         if(action == "delete"):
-            return delete_element_from_store(element_id)
+            delete_element_from_store(element_id)
 
         if(action == "modify"):
-            return modify_element_in_store(element_id, entry)
+            modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            return add_new_element_to_store(element_id, entry)
-
+            add_new_element_to_store(element_id, entry)
     
     def generate_id():
         global board
