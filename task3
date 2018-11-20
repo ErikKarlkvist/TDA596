@@ -1,0 +1,5 @@
+Hello again
+
+We are group 13 and this is our demo for task 3. We created this script that you can see on the screen that generates 20 "tx" and sends them to vessel 1, the vessel with ip 10.1.0.1 and port 80. 
+
+As long as all messages are received by all vessels, they should appear in the same other. This is because we set the microsecond id in the vessel that gets the input first, and then send that node_id to all other vessels. Therefor the id are the same for all vessels, and when they are sorted they appear in the same order at all vessels. If we are extremely unlucky, two vessel might create an input at the exact same microsecond and thus override each other values, so only one of the values appear. However in our case with only 8 vessels, this is unlikely. 
