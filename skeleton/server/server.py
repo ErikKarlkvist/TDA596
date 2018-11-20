@@ -23,7 +23,7 @@ try:
 
     board = {}
 
-    has_circulated = False;
+    #has_circulated = False;
 
     
     # ------------------------------------------------------------------------------------------------------
@@ -173,32 +173,28 @@ try:
             add_new_element_to_store(element_id, entry)
 
     #@app.post('/leader/initiate/')
-    
     @app.post('/leader/circulate/')
     def circulate_leader():
-        global node_id, has_circulated
-        if(!has_circulated):
-            has_circulated = True; 
-            node_list = json.loads(request.body.read())
-            if node_id in node_list:
-                print("found myself")
-                print(node_id)
-                print(node_list)
-            else: 
-                node_list.append(node_id)
-                print("circulating")
-                print(node_list)
-                thread = Thread(target = contact_vessel, args = (next_vessel_ip(), "/leader/circulate/", json.dumps(node_list), 'POST'))
-                thread.deamon = True
-                thread.start()
+        global node_id
+        node_list = json.loads(request.body.read())
+        if node_id in node_list:
+            print("found myself")
+            print(node_id)
+            print(node_list)
         else: 
-            print("already circulated")
+            node_list.append(node_id)
+            print("circulating")
+            print(node_list)
+            thread = Thread(target = contact_vessel, args = (next_vessel_ip(), "/leader/circulate/", json.dumps(node_list), 'POST'))
+            thread.deamon = True
+            thread.start()
 
     #-----------------------------------------------------------------------------------------------------
     #LEADER ELECTION
     #----------------------------------------------------------------------------------------------------
     def initiate_leader_election():
         global node_id
+        time.sleep(5)
         print("leader election init")
         print(node_id)
         node_list = [node_id]
@@ -209,7 +205,7 @@ try:
 
     def next_vessel_ip():
         next_vessel_id = 1
-        if node_id < len(vessel_list) + 1:
+        if node_id < len(vessel_list):
             next_vessel_id = node_id + 1
         return '10.1.0.{}'.format(str(next_vessel_id))
     #-----------------------------------------------------------------------------------------------------
@@ -247,11 +243,13 @@ try:
         node_id = args.nid
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
-        for i in range(1, args.nbv):
+        for i in range(1, args.nbv+1):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
-            initiate_leader_election()
+            thread = Thread(target = initiate_leader_election, args = ())
+            thread.deamon = True
+            thread.start()
             run(app, host=vessel_list[str(node_id)], port=port)
         except Exception as e:
             print e
