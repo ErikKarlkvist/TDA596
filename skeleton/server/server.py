@@ -22,6 +22,12 @@ try:
     app = Bottle()
 
     board = {}
+    leader = 0
+
+    
+    
+
+
 
 
 
@@ -92,6 +98,37 @@ try:
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
+    def propagate_to_next_vessel(path, payload = None, req = 'POST'):
+
+        global vessel_list, node_id
+
+        if(node_id == (len(vessel_list)-1):
+            success = contact_vessel('10.1.0.1', path, payload, req)
+        else:
+            success = contact_vessel('10.1.0.'+str(node_id+1), path, payload, req)
+
+
+    #--------------------------------------------------------------------------
+    def add_to_list(list): #adderar sitt node_id i listan man fått av förra vesseln
+        return list.append(node_id)
+    
+    def send_list(list): #skickar listan till nästa vessel
+
+        propagate_to_next_vessel('/election/', json.dumps(list), req = 'POST')
+
+    def list_received(list):
+        global leader, node_id
+
+        for vessel_ip in list.items():
+            if (vessel_ip == node_id):
+                leader = node_id
+                #send_list(leader) ska på nåt sätt skicka runt vem ledaren är
+                break;
+
+        list = add_to_list(list)
+        send_list(list)
+
+    #-----------------------------------------------------------------
 
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
@@ -147,6 +184,8 @@ try:
                 action = "modify"
                 modify_element_in_store(element_id, entryStr)
 
+            if()
+
             t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(element_id)), entryStr))
             t.deamon = True
             t.start()
@@ -170,7 +209,19 @@ try:
 
         if(action == "add"):
             add_new_element_to_store(element_id, entry)
-    
+
+    @app.post('/election/'):
+    def election_received():
+        body = request.body.read()
+        prev_list = json.loads(list)
+
+        print("The previous list: " + prev_list)
+
+        list_received(prev_list)
+
+
+
+
     def generate_id():
         global board
         id = 0
@@ -183,6 +234,12 @@ try:
             while(id in board): #if id is in board, retry until it's not
                 id = random.randint(rs,re)
         return id
+
+    def initiate_election():
+
+        own_list = []
+        list_received(own_list)
+
         
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
@@ -204,7 +261,9 @@ try:
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
+            initiate_election()
             run(app, host=vessel_list[str(node_id)], port=port)
+
         except Exception as e:
             print e
     # ------------------------------------------------------------------------------------------------------
