@@ -22,7 +22,7 @@ try:
     app = Bottle()
 
     board = {}
-    leader = 0
+    leader = -1
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -139,7 +139,7 @@ try:
 
         entry_id = -1
         if(action == "add"): 
-            entry_id = len(board) + 1
+            entry_id = len(board) +1
             add_new_element_to_store(entry_id, entry)
         
         thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(entry_id), entry, 'POST'))
@@ -156,26 +156,27 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print(board)
-        return template('server/boardcontents_template.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
+        return template('server/boardcontents_template.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
     # ------------------------------------------------------------------------------------------------------
 
     @app.post('/board')
     def client_add_received():
 
-        global board, node_id
+        global board, node_id, leader
         try:
             new_entry = request.forms.get('entry')
             #element_id = int(round(time.time()*1000000))
             # generate_id()
             #add_new_element_to_store(element_id, new_entry)
+
             if(node_id != leader):
-                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add/", new_entry, 'POST'))
+                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add", new_entry, 'POST'))
                 thread.deamon = True
                 thread.start()
             else:
