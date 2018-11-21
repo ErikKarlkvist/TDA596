@@ -107,20 +107,44 @@ try:
         thread.start()
 
     # --------------------------------------------------------------------------
+    def handle_leader(lista):
+        global leader
+        highest = 0
+        for vessel_id in lista:
+            if vessel_id > highest:
+                highest = vessel_id
+        leader = highest
+        print("FOUND LEADER: " + str(leader))
+        thread = Thread(target = propagate_to_vessels, args =('/election/leader/' + str(leader), None , 'POST'))
+        thread.deamon = True
+        thread.start()
+        #propagate_to_vessels('/election/leader/' + str(leader) , payload=None , req='POST')
 
-    def list_received(lista):
-        global leader, node_id
+    def handle_election(lista):
+        global node_id
 
         if node_id in lista:
-            leader = node_id
+            print("FOUND MYSELF: " + str(node_id))
+            handle_leader(lista)
+            
         else:
-            print("Innan" + str(lista))
+            print("Innan: " + str(lista))
             lista.append(node_id)
-            print("Efter" + str(lista))
+            print("Efter: " + str(lista))
 
-            propagate_to_next_vessel('/election/', json.dumps(lista), req='POST')
+            propagate_to_next_vessel('/election/circulate/', json.dumps(lista), req='POST')
 
+    def leader_handle_element(action, entry):
+        global board
+
+        entry_id = -1
+        if(action == "add"): 
+            entry_id = len(board) + 1
+            add_new_element_to_store(entry_id, entry)
         
+        thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(entry_id)), entry, 'POST')
+        thread.deamon = True
+        thread.start()
 
     # -----------------------------------------------------------------
 
@@ -144,19 +168,20 @@ try:
     @app.post('/board')
     def client_add_received():
 
-        global board
+        global board, node_id
         try:
             new_entry = request.forms.get('entry')
-            element_id = int(round(time.time()*1000000))
+            #element_id = int(round(time.time()*1000000))
             # generate_id()
-            # you might want to change None here
-            add_new_element_to_store(element_id, new_entry)
-            thread = Thread(target=propagate_to_vessels, args=(
-                "/propagate/add/"+str(element_id), new_entry, 'POST'))
-            thread.deamon = True
-            thread.start()
-            # Returning true gives a weird error so we return a describing string instead
-            return "Latest entry: " + new_entry
+            #add_new_element_to_store(element_id, new_entry)
+            if(node_id != leader):
+                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add/", new_entry, 'POST'))
+                thread.deamon = True
+                thread.start()
+            else:
+                leader_create_element("add", new_entry)
+
+            return "Latest entry: " + new_entry # Returning true gives a weird error so we return a describing string instead
 
         except Exception as e:
             print(e)
@@ -207,16 +232,24 @@ try:
         if(action == "add"):
             add_new_element_to_store(element_id, entry)
 
-    @app.post('/election/')
+    @app.post('/election/circulate/')
     def election_received():
         body = request.body.read()
         prev_list = json.loads(body)
+        handle_election(prev_list)
 
-        print("The previous list: " + str(prev_list))
+    @app.post('/election/leader/<leader_id>')
+    def leader_found(leader_id):
+        global leader
+        leader = leader_id
+        print("LEADER ELECTED: " + leader)
 
-        #print(str(prev_list))
+    @app.post('/leader/<action>')
+    def leader_propagation_recieved(action):
+        entry = request.body.read()
+        leader_handle_element(action, entry)
 
-        list_received(prev_list)
+
 
     def generate_id():
         global board
@@ -234,12 +267,8 @@ try:
         return id
 
     def initiate_election():
-
         time.sleep(5)
-
-        own_list = []
-
-        list_received(own_list)
+        handle_election([])
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
