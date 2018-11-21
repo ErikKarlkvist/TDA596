@@ -142,7 +142,7 @@ try:
             entry_id = len(board) + 1
             add_new_element_to_store(entry_id, entry)
         
-        thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(entry_id)), entry, 'POST')
+        thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(entry_id), entry, 'POST'))
         thread.deamon = True
         thread.start()
 
@@ -179,7 +179,7 @@ try:
                 thread.deamon = True
                 thread.start()
             else:
-                leader_create_element("add", new_entry)
+                leader_handle_element("add", new_entry)
 
             return "Latest entry: " + new_entry # Returning true gives a weird error so we return a describing string instead
 
