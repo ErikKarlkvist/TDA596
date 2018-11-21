@@ -97,39 +97,30 @@ try:
 
         global vessel_list, node_id
 
-        if node_id >= len(vessel_list):
-            success = contact_vessel('10.1.0.1', path, payload, req)
-        else:
-            success = contact_vessel(
-                '10.1.0.'+str(node_id+1), path, payload, req)
+        ip = '10.1.0.1'
+
+        if node_id < len(vessel_list):
+            ip = '10.1.0.'+str(node_id+1)
+
+        thread = Thread(target = contact_vessel, args = (ip, path, payload, req))
+        thread.deameon = True
+        thread.start()
 
     # --------------------------------------------------------------------------
-    def add_to_list(list):  # adderar sitt node_id i listan man fått av förra vesseln
-        return list.append(node_id)
 
-    def send_list(list):  # skickar listan till nästa vessel
-        propagate_to_next_vessel('/election/', json.dumps(list), req='POST')
-
-    def list_received(list):
+    def list_received(lista):
         global leader, node_id
 
-        lista = list
+        if node_id in lista:
+            leader = node_id
+        else:
+            print("Innan" + str(lista))
+            lista.append(node_id)
+            print("Efter" + str(lista))
 
-        if(len(lista) == 0):
-            for vessel_ip in lista:
-                if (vessel_ip == node_id):
-                    leader = node_id
-                # send_list(leader) ska på nåt sätt skicka runt vem ledaren är
-                
+            propagate_to_next_vessel('/election/', json.dumps(lista), req='POST')
 
-        print("Innan" + str(lista))
-        lista.append(node_id)
-        print("Efter" + str(lista))
         
-        thread = Thread(target = send_list, args = (lista))
-        thread.deamon = True
-        thread.start()
-        #send_list(lista)
 
     # -----------------------------------------------------------------
 
