@@ -97,7 +97,7 @@ try:
 
         global vessel_list, node_id
 
-        if node_id == len(vessel_list)-1:
+        if node_id >= len(vessel_list):
             success = contact_vessel('10.1.0.1', path, payload, req)
         else:
             success = contact_vessel(
@@ -108,20 +108,28 @@ try:
         return list.append(node_id)
 
     def send_list(list):  # skickar listan till nästa vessel
-
         propagate_to_next_vessel('/election/', json.dumps(list), req='POST')
 
     def list_received(list):
         global leader, node_id
 
-        for vessel_ip in list.items():
-            if (vessel_ip == node_id):
-                leader = node_id
-                # send_list(leader) ska på nåt sätt skicka runt vem ledaren är
-                break
+        lista = list
 
-        list = add_to_list(list)
-        send_list(list)
+        if(len(lista) == 0):
+            for vessel_ip in lista:
+                if (vessel_ip == node_id):
+                    leader = node_id
+                # send_list(leader) ska på nåt sätt skicka runt vem ledaren är
+                
+
+        print("Innan" + str(lista))
+        lista.append(node_id)
+        print("Efter" + str(lista))
+        
+        thread = Thread(target = send_list, args = (lista))
+        thread.deamon = True
+        thread.start()
+        #send_list(lista)
 
     # -----------------------------------------------------------------
 
@@ -211,9 +219,11 @@ try:
     @app.post('/election/')
     def election_received():
         body = request.body.read()
-        prev_list = json.loads(list)
+        prev_list = json.loads(body)
 
-        print("The previous list: " + prev_list)
+        print("The previous list: " + str(prev_list))
+
+        #print(str(prev_list))
 
         list_received(prev_list)
 
@@ -234,7 +244,10 @@ try:
 
     def initiate_election():
 
+        time.sleep(5)
+
         own_list = []
+
         list_received(own_list)
 
     # ------------------------------------------------------------------------------------------------------
@@ -257,11 +270,13 @@ try:
         node_id = args.nid
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
-        for i in range(1, args.nbv):
+        for i in range(1, args.nbv+1):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
-            initiate_election()
+            thread = Thread(target = initiate_election, args = ())
+            thread.deamon = True
+            thread.start()
             run(app, host=vessel_list[str(node_id)], port=port)
 
         except Exception as e:
