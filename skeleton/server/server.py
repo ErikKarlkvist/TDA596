@@ -10,7 +10,7 @@ import sys
 import time
 import json
 import argparse
-import random
+from random import randint
 import time
 from threading import Thread
 
@@ -23,6 +23,7 @@ try:
 
     board = {}
     leader = -1
+    randomID = -1
 
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
@@ -111,42 +112,47 @@ try:
     # --------------------------------------------------------------------------
 
     def initiate_election():
+        global randomID
         time.sleep(5)
-        handle_election([])
+        randomID = randint(len(vessel_list)+1,1000) #gives every vessel a random ID
+        handle_election({}) #Everyone starts with an empty dictionary
 
-    def handle_leader(lista):
+    def handle_leader(dictionary):
         global leader
         highest = 0
-        for vessel_id in lista:
-            if vessel_id > highest:
-                highest = vessel_id
-        leader = highest
+        highest_node = 0
+        for k,v in dictionary.iteritems(): #DECIDE THE RIGHTFUL LEADER (if two vessel_ids have the same randomID, we always choose the one with the highest node_id)            if v > highest:
+            highest = v
+            highest_node = k
+            elif v == highest and int(highest_node) > int(k):
+                highest_node = k
+        leader = highest_node
         print("FOUND LEADER: " + str(leader))
-        thread = Thread(target = propagate_to_vessels, args =('/election/leader/' + str(leader), None , 'POST'))
+        thread = Thread(target = propagate_to_vessels, args =('/election/leader/' + str(leader), None , 'POST')) #Tell the others about this newfound leader and agree on it
         thread.deamon = True
         thread.start()
-        #propagate_to_vessels('/election/leader/' + str(leader) , payload=None , req='POST')
+        
 
-    def handle_election(lista):
-        global node_id
+    def handle_election(elecDict):
+        global node_id, randomID
 
-        if node_id in lista:
+        if str(node_id) in elecDict.keys(): #If a vessel has found itself -> It's time for leader election
             print("FOUND MYSELF: " + str(node_id))
-            handle_leader(lista)
+            handle_leader(elecDict)
             
-        else:
-            print("Innan: " + str(lista))
-            lista.append(node_id)
-            print("Efter: " + str(lista))
+        else: #Else just add your nodeID and randomID to the dictionary and continue
+            print("Innan: " + str(elecDict))
+            elecDict[str(node_id)] = randomID
+            print("Efter: " + str(elecDict))
 
-            propagate_to_next_vessel('/election/circulate/', json.dumps(lista), req='POST')
+            propagate_to_next_vessel('/election/circulate/', json.dumps(elecDict), req='POST')
 
 
     # --------------------------------------------------------------------------
     # LEADER HANDLES ACTION FROM OTHERS
     # --------------------------------------------------------------------------
     
-    def leader_handle_element(action, entry):
+    def leader_handle_element(action, entry): #The newfound leader sends the new messages to the other vessels
         global board
 
         entry_id = -1
@@ -248,8 +254,8 @@ try:
     @app.post('/election/circulate/')
     def election_received():
         body = request.body.read()
-        prev_list = json.loads(body)
-        handle_election(prev_list)
+        prev_elecDict = json.loads(body)
+        handle_election(prev_elecDict)
 
     @app.post('/election/leader/<leader_id>')
     def leader_found(leader_id):
