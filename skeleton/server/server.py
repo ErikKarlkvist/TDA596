@@ -107,6 +107,13 @@ try:
         thread.start()
 
     # --------------------------------------------------------------------------
+    # ELECTION HANDLING
+    # --------------------------------------------------------------------------
+
+    def initiate_election():
+        time.sleep(5)
+        handle_election([])
+
     def handle_leader(lista):
         global leader
         highest = 0
@@ -134,6 +141,11 @@ try:
 
             propagate_to_next_vessel('/election/circulate/', json.dumps(lista), req='POST')
 
+
+    # --------------------------------------------------------------------------
+    # LEADER HANDLES ACTION FROM OTHERS
+    # --------------------------------------------------------------------------
+    
     def leader_handle_element(action, entry):
         global board
 
@@ -251,6 +263,9 @@ try:
         leader_handle_element(action, entry)
 
 
+    # --------------------------------------------------------------------------
+    # HELPER
+    # --------------------------------------------------------------------------
 
     def generate_id():
         global board
@@ -266,10 +281,6 @@ try:
             while(id in board):  # if id is in board, retry until it's not
                 id = random.randint(rs, re)
         return id
-
-    def initiate_election():
-        time.sleep(5)
-        handle_election([])
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
