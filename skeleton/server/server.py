@@ -122,8 +122,9 @@ try:
         highest = 0
         highest_node = 0
         for k,v in dictionary.iteritems(): #DECIDE THE RIGHTFUL LEADER (if two vessel_ids have the same randomID, we always choose the one with the highest node_id)            if v > highest:
-            highest = v
-            highest_node = k
+            if(v > highest):
+                highest = v
+                highest_node = k
             elif v == highest and int(highest_node) > int(k):
                 highest_node = k
         leader = highest_node
@@ -152,15 +153,20 @@ try:
     # LEADER HANDLES ACTION FROM OTHERS
     # --------------------------------------------------------------------------
     
-    def leader_handle_element(action, entry): #The newfound leader sends the new messages to the other vessels
+    def leader_handle_element(action, entry, element_id): #The newfound leader sends the new messages to the other vessels
         global board
 
-        entry_id = -1
-        if(action == "add"): 
-            entry_id = len(board) +1
-            add_new_element_to_store(entry_id, entry)
+        if(action == "add"):
+            element_id = len(board) + 1
+            while(str(element_id) in board.keys()):  
+                element_id = int(element_id) + 1
+            add_new_element_to_store(element_id, entry)
+        elif(action == "modify"): 
+            modify_element_in_store(element_id, entry)
+        else:
+            delete_element_from_store(element_id)
         
-        thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(entry_id), entry, 'POST'))
+        thread = Thread(target = propagate_to_vessels, args = ('/propagate/' + action + "/" + str(element_id), entry, 'POST'))
         thread.deamon = True
         thread.start()
 
@@ -173,14 +179,14 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
+        global board, node_id, leader
+        return template('server/index.tpl', leader=str(leader), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print(board)
-        return template('server/boardcontents_template.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
+        return template('server/boardcontents_template.tpl', leader=str(leader), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
     # ------------------------------------------------------------------------------------------------------
 
     @app.post('/board')
@@ -189,12 +195,8 @@ try:
         global board, node_id, leader
         try:
             new_entry = request.forms.get('entry')
-            #element_id = int(round(time.time()*1000000))
-            # generate_id()
-            #add_new_element_to_store(element_id, new_entry)
-
             if(node_id != leader):
-                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add", new_entry, 'POST'))
+                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add/0", new_entry, 'POST'))
                 thread.deamon = True
                 thread.start()
             else:
@@ -209,7 +211,7 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id
+        global board, node_id, leader
 
         action = ""  # action that determines modify or delete to be sent to propagate_to_vessels()
 
@@ -220,16 +222,16 @@ try:
         try:
             if(deleteStr == "1"):
                 action = "delete"
-                delete_element_from_store(element_id)
-
-            if(deleteStr == "0"):
+            elif(deleteStr == "0"):
                 action = "modify"
-                modify_element_in_store(element_id, entryStr)
 
-            t = Thread(target=propagate_to_vessels, args=(
-                ('/propagate/' + action + '/' + str(element_id)), entryStr))
-            t.deamon = True
-            t.start()
+            if(node_id != leader): 
+                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/"+action+"/"+str(element_id), entryStr, 'POST'))
+                thread.deamon = True
+                thread.start()
+            else:
+                leader_handle_element(action, entryStr) 
+
 
             # Returning true gives a weird error so we return a describing string instead
             return "Action successfull"
@@ -263,10 +265,10 @@ try:
         leader = leader_id
         print("LEADER ELECTED: " + leader)
 
-    @app.post('/leader/<action>')
-    def leader_propagation_recieved(action):
+    @app.post('/leader/<action>/<element_id>')
+    def leader_propagation_recieved(action, element_id):
         entry = request.body.read()
-        leader_handle_element(action, entry)
+        leader_handle_element(action, entry, element_id)
 
 
     # --------------------------------------------------------------------------
