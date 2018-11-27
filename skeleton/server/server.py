@@ -124,7 +124,7 @@ try:
             'v': str(randomID) #value of highets
         } #Everyone starts with an empty dictionary
 
-        thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), req='POST'))
+        thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), 'POST'))
         thread.deamon = True
         thread.start()
         
@@ -144,7 +144,7 @@ try:
                 elecDict['v'] = randomID
                 print("Efter: " + str(elecDict))
 
-            thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), req='POST'))
+            thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), 'POST'))
             thread.deamon = True
             thread.start()
 
@@ -203,7 +203,7 @@ try:
                 thread.deamon = True
                 thread.start()
             else:
-                leader_handle_element("add", new_entry)
+                leader_handle_element("add", new_entry, -1)
 
             return "Latest entry: " + new_entry # Returning true gives a weird error so we return a describing string instead
 
@@ -233,7 +233,7 @@ try:
                 thread.deamon = True
                 thread.start()
             else:
-                leader_handle_element(action, entryStr) 
+                leader_handle_element(action, entryStr, element_id) 
 
 
             # Returning true gives a weird error so we return a describing string instead
@@ -266,26 +266,6 @@ try:
     def leader_propagation_recieved(action, element_id):
         entry = request.body.read()
         leader_handle_element(action, entry, element_id)
-
-
-    # --------------------------------------------------------------------------
-    # HELPER
-    # --------------------------------------------------------------------------
-
-    def generate_id():
-        global board
-        id = 0
-        # A start that is higher than the amount of vessels to avoid collisions
-        rs = (len(vessel_list)+1)
-        re = 10000001  # random end
-        if(len(board) == 0):  # if board has length 0, just set random number
-            id = random.randint(rs, re)
-        else:
-            # access first key in board just to have a key that already exist in while loop
-            id = board.keys()[0]
-            while(id in board):  # if id is in board, retry until it's not
-                id = random.randint(rs, re)
-        return id
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
