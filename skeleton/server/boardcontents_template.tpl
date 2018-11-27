@@ -3,7 +3,7 @@ It will be reloaded automatically from the server -->
 <div id="boardcontents_placeholder">
 	<!-- The title comes here -->
 	<div id="boardtitle_placeholder" class="boardtitle">{{board_title}}</div>
-	<div id="leader" class="boardtitle">Board leader: {{leader}}</div>
+	<div id="leader" class="boardtitle">{{leader}}</div>
     <input type="text" name="id" value="ID" readonly>
     <input type="text" name="entry" value="Entry" size="70%%" readonly>
     % for board_entry, board_element in board_dict:

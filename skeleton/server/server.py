@@ -129,9 +129,6 @@ try:
                 highest_node = k
         leader = highest_node
         print("FOUND LEADER: " + str(leader))
-        thread = Thread(target = propagate_to_vessels, args =('/election/leader/' + str(leader), None , 'POST')) #Tell the others about this newfound leader and agree on it
-        thread.deamon = True
-        thread.start()
         
 
     def handle_election(elecDict):
@@ -179,14 +176,14 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.route('/')
     def index():
-        global board, node_id, leader
-        return template('server/index.tpl', leader=str(leader), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
+        global board, node_id, leader, randomID
+        return template('server/index.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
 
     @app.get('/board')
     def get_board():
-        global board, node_id
+        global board, node_id, randomID
         print(board)
-        return template('server/boardcontents_template.tpl', leader=str(leader), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
+        return template('server/boardcontents_template.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
     # ------------------------------------------------------------------------------------------------------
 
     @app.post('/board')
@@ -258,12 +255,6 @@ try:
         body = request.body.read()
         prev_elecDict = json.loads(body)
         handle_election(prev_elecDict)
-
-    @app.post('/election/leader/<leader_id>')
-    def leader_found(leader_id):
-        global leader
-        leader = leader_id
-        print("LEADER ELECTED: " + leader)
 
     @app.post('/leader/<action>/<element_id>')
     def leader_propagation_recieved(action, element_id):
