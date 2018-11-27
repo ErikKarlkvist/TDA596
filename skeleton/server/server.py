@@ -98,52 +98,58 @@ try:
 
         global vessel_list, node_id
 
-        ip = '10.1.0.1'
+        success = False
+        last_node = int(node_id)
+        while(not success): 
+            
+            ip = '10.1.0.1'
+            if last_node < len(vessel_list):
+                last_node = last_node + 1
+                ip = '10.1.0.'+str(last_node)
 
-        if node_id < len(vessel_list):
-            ip = '10.1.0.'+str(node_id+1)
+            success = contact_vessel(ip, path, payload, req)
 
-        thread = Thread(target = contact_vessel, args = (ip, path, payload, req))
-        thread.deameon = True
-        thread.start()
 
     # --------------------------------------------------------------------------
     # ELECTION HANDLING
     # --------------------------------------------------------------------------
 
     def initiate_election():
-        global randomID
+        global randomID, node_id
         time.sleep(5)
         randomID = randint(len(vessel_list)+1,1000) #gives every vessel a random ID
-        handle_election({}) #Everyone starts with an empty dictionary
+        elecDict = {
+            's': str(node_id), #start node. never changes
+            'h': str(node_id), #highhest so far (myself)
+            'v': str(randomID) #value of highets
+        } #Everyone starts with an empty dictionary
 
-    def handle_leader(dictionary):
-        global leader
-        highest = 0
-        highest_node = 0
-        for k,v in dictionary.iteritems(): #DECIDE THE RIGHTFUL LEADER (if two vessel_ids have the same randomID, we always choose the one with the highest node_id)            if v > highest:
-            if(v > highest):
-                highest = v
-                highest_node = k
-            elif v == highest and int(highest_node) > int(k):
-                highest_node = k
-        leader = highest_node
-        print("FOUND LEADER: " + str(leader))
+        thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), req='POST'))
+        thread.deamon = True
+        thread.start()
         
 
     def handle_election(elecDict):
-        global node_id, randomID
+        global node_id, randomID, leader
 
-        if str(node_id) in elecDict.keys(): #If a vessel has found itself -> It's time for leader election
+        if str(node_id) == elecDict['s']: #If a vessel has found itself -> It's time for leader election
             print("FOUND MYSELF: " + str(node_id))
-            handle_leader(elecDict)
-            
-        else: #Else just add your nodeID and randomID to the dictionary and continue
-            print("Innan: " + str(elecDict))
-            elecDict[str(node_id)] = randomID
-            print("Efter: " + str(elecDict))
+            leader = elecDict['h']
+            print("FOUND LEADER: " + str(leader))
+            #handle_leader(elecDict)
+        else: 
+            if randomID > int(elecDict['v']) or (randomID == int(elecDict['v']) and int(elecDict['h']) > node_id): #Else just add your nodeID and randomID to the dictionary and continue
+                print("Innan: " + str(elecDict))
+                elecDict['h'] = node_id
+                elecDict['v'] = randomID
+                print("Efter: " + str(elecDict))
 
-            propagate_to_next_vessel('/election/circulate/', json.dumps(elecDict), req='POST')
+            thread = Thread(target = propagate_to_next_vessel, args = ('/election/circulate/', json.dumps(elecDict), req='POST'))
+            thread.deamon = True
+            thread.start()
+
+
+        
 
 
     # --------------------------------------------------------------------------
