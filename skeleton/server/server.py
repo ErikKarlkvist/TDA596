@@ -145,7 +145,7 @@ try:
     # --------------------------------------------------------------------------
     # LEADER HANDLES ACTION FROM OTHERS
     # --------------------------------------------------------------------------
-    
+
     def leader_handle_element(action, entry):
         global board
 
@@ -168,13 +168,13 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print(board)
-        return template('server/boardcontents_template.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
+        return template('server/boardcontents_template.tpl', board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board))
     # ------------------------------------------------------------------------------------------------------
 
     @app.post('/board')
@@ -281,6 +281,10 @@ try:
             while(id in board):  # if id is in board, retry until it's not
                 id = random.randint(rs, re)
         return id
+
+    def sortBoard(board): 
+        integerParsedBoard = {int(float(k)): v for k, v in board.items()}
+        return sorted(integerParsedBoard.iteritems())
 
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
