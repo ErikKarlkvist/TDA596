@@ -290,6 +290,15 @@ try:
         leader_handle_element(action, entry, element_id)
 
     # ------------------------------------------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------------------------------------------
+
+    #properly sort board (normal sorting doesn't fork since the values are strings)
+    def sortBoard(board): 
+        integerParsedBoard = {int(float(k)): v for k, v in board.items()}
+        return sorted(integerParsedBoard.iteritems())
+
+    # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
     # a single example (index) should be done for get, and one for postGive it to the students-----------------------------------------------------------------------------------------------------
