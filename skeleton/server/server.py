@@ -101,11 +101,13 @@ try:
         success = False
         last_node = int(node_id)
         while(not success): 
-            
-            ip = '10.1.0.1'
+            ip = ""
             if last_node < len(vessel_list):
                 last_node = last_node + 1
                 ip = '10.1.0.'+str(last_node)
+            else: # for last vessel in list
+                ip = '10.1.0.1'
+                last_node = 1
 
             success = contact_vessel(ip, path, payload, req)
 
@@ -114,9 +116,11 @@ try:
     # ELECTION HANDLING
     # --------------------------------------------------------------------------
 
-    def initiate_election():
+    def initiate_election(should_sleep):
         global randomID, node_id
-        time.sleep(5)
+        if(should_sleep):
+            time.sleep(5)
+
         randomID = randint(len(vessel_list)+1,1000) #gives every vessel a random ID
         elecDict = {
             's': str(node_id), #start node. never changes
@@ -153,8 +157,23 @@ try:
 
 
     # --------------------------------------------------------------------------
-    # LEADER HANDLES ACTION FROM OTHERS
+    # LEADER HANDLES ACTION
     # --------------------------------------------------------------------------
+
+    def send_to_leader(action, new_entry, element_id):
+        global leader
+        success = contact_vessel('10.1.0.'+ str(leader), "/leader/"+action+"/"+str(element_id), new_entry, 'POST')
+        #if leader fails to answer, restart election for all
+        #retry until the message has successfully been added
+        prevLeader = leader
+        if(not success):
+            propagate_to_vessels('/propagate/reelect/0', None, 'POST')
+            initiate_election(False)
+            while(leader == prevLeader):
+                print("waiting for new leader")
+            send_to_leader(action, new_entry, element_id)
+
+
     
     def leader_handle_element(action, entry, element_id): #The newfound leader sends the new messages to the other vessels
         global board
@@ -195,11 +214,11 @@ try:
     @app.post('/board')
     def client_add_received():
 
-        global board, node_id, leader
+        global board, node_id
         try:
             new_entry = request.forms.get('entry')
             if(node_id != leader):
-                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/add/0", new_entry, 'POST'))
+                thread = Thread(target=send_to_leader, args=("add", new_entry, 0))
                 thread.deamon = True
                 thread.start()
             else:
@@ -229,7 +248,7 @@ try:
                 action = "modify"
 
             if(node_id != leader): 
-                thread = Thread(target=contact_vessel, args=('10.1.0.'+ str(leader), "/leader/"+action+"/"+str(element_id), entryStr, 'POST'))
+                thread = Thread(target=send_to_leader, args=(action, entryStr, element_id))
                 thread.deamon = True
                 thread.start()
             else:
@@ -255,6 +274,9 @@ try:
 
         if(action == "add"):
             add_new_element_to_store(element_id, entry)
+
+        if(action == "reelect"):
+            initiate_election(False)
 
     @app.post('/election/circulate/')
     def election_received():
@@ -291,7 +313,7 @@ try:
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
-            thread = Thread(target = initiate_election, args = ())
+            thread = Thread(target = initiate_election, args = (True,))
             thread.deamon = True
             thread.start()
             run(app, host=vessel_list[str(node_id)], port=port)
