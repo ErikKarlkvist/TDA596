@@ -202,13 +202,13 @@ try:
     @app.route('/')
     def index():
         global board, node_id, leader, randomID
-        return template('server/index.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
+        return template('server/index.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se')
 
     @app.get('/board')
     def get_board():
         global board, node_id, randomID
         print(board)
-        return template('server/boardcontents_template.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems(), key = lambda x: x))
+        return template('server/boardcontents_template.tpl', leader="Leader ID: " + str(leader) + " My random number: " + str(randomID), board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board))
     # ------------------------------------------------------------------------------------------------------
 
     @app.post('/board')
