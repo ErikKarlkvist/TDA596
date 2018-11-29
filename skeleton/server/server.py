@@ -124,8 +124,6 @@ try:
             randomID = randint(len(vessel_list)+1,1000)
             #only sleep first time (not on reset), this is just to let all nodes start, which they already have on reset
             time.sleep(5)
-
-
         
         elecDict = {
             's': str(node_id), #start node. never changes
