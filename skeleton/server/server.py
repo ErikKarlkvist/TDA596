@@ -116,12 +116,17 @@ try:
     # ELECTION HANDLING
     # --------------------------------------------------------------------------
 
-    def initiate_election(should_sleep):
+    def initiate_election(reset):
         global randomID, node_id
-        if(should_sleep):
+        if(reset):
+            #gives every vessel a random ID
+            #don't regenarte if election is reset, since that can lead to inconsistensies
+            randomID = randint(len(vessel_list)+1,1000)
+            #only sleep first time (not on reset), this is just to let all nodes start, which they already have on reset
             time.sleep(5)
 
-        randomID = randint(len(vessel_list)+1,1000) #gives every vessel a random ID
+
+        
         elecDict = {
             's': str(node_id), #start node. never changes
             'h': str(node_id), #highhest so far (myself)
@@ -141,7 +146,7 @@ try:
             leader = elecDict['h']
             print("FOUND LEADER: " + str(leader))
             #handle_leader(elecDict)
-        else: 
+        else:
             if randomID > int(elecDict['v']) or (randomID == int(elecDict['v']) and int(elecDict['h']) > node_id): #Else just add your nodeID and randomID to the dictionary and continue
                 print("Innan: " + str(elecDict))
                 elecDict['h'] = node_id
