@@ -23,6 +23,8 @@ try:
 
     board = {}
 
+    lc = 0
+
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -112,13 +114,20 @@ try:
     @app.post('/board')
     def client_add_received():
         
-        global board
+        global board, lc, node_id
         try:
+            lc = 1 + int(lc)
+
             new_entry = request.forms.get('entry')
-            element_id = int(round(time.time()*1000000))
+
+            body = {
+                'entry': new_entry,
+                'node': node_id,
+                'localClock': lc,
+            }
             #generate_id()
-            add_new_element_to_store(element_id, new_entry) # you might want to change None here
-            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(element_id), new_entry, 'POST'))
+            add_new_element_to_store(lc, new_entry) # you might want to change None here
+            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST'))
             thread.deamon = True
             thread.start()
             return "Latest entry: " + new_entry #Returning true gives a weird error so we return a describing string instead
@@ -160,7 +169,11 @@ try:
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
 
-        entry = request.body.read()
+        global lc
+
+        body = json.loads(request.body.read())
+
+        entry = body['entry']
 
         if(action == "delete"):
             delete_element_from_store(element_id)
@@ -169,7 +182,13 @@ try:
             modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            add_new_element_to_store(element_id, entry)
+            print("BEFORE: " +str(lc))
+            if int(body['localClock']) > int(lc):
+                lc =  body['localClock']
+            else:
+                lc = lc + 1
+            add_new_element_to_store(lc, entry)
+            print("AFTER: "+str(lc))
     
     def generate_id():
         global board
