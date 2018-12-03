@@ -25,6 +25,8 @@ try:
 
     lc = 0
 
+    log = []
+
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -103,13 +105,13 @@ try:
     @app.route('/')
     def index():
         global board, node_id
-        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se') 
+        return template('server/index.tpl', board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board), members_name_string='knoph@student.chalmers.se & erikarlk@student.chalmers.se') 
 
     @app.get('/board')
     def get_board():
         global board, node_id
         print board
-        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
+        return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sortBoard(board))
     # ------------------------------------------------------------------------------------------------------
     @app.post('/board')
     def client_add_received():
@@ -125,6 +127,8 @@ try:
                 'node': node_id,
                 'localClock': lc,
             }
+
+            log.append(body)
             #generate_id()
             add_new_element_to_store(lc, new_entry) # you might want to change None here
             thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST'))
@@ -169,11 +173,13 @@ try:
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
 
-        global lc
+        global lc, node_id
 
         body = json.loads(request.body.read())
+        log.append(body)
 
         entry = body['entry']
+        rc = int(body['localClock'])
 
         if(action == "delete"):
             delete_element_from_store(element_id)
@@ -183,11 +189,23 @@ try:
 
         if(action == "add"):
             print("BEFORE: " +str(lc))
-            if int(body['localClock']) > int(lc):
-                lc =  body['localClock']
-            else:
+            if rc > lc: # always take the largest clock
+                lc = rc
+                add_new_element_to_store(lc, entry)
+            elif rc == lc: # if equal, prioritize on node with lowest id
+                if node_id > int(body['node']): 
+                    other_entry = board[str(lc)]
+                    print("Other entry: " + other_entry)
+                    modify_element_in_store(lc, entry)
+                    lc = lc + 1
+                    add_new_element_to_store(lc, other_entry)
+                else: 
+                    lc = lc + 1
+                    add_new_element_to_store(lc, entry)
+            else: 
                 lc = lc + 1
-            add_new_element_to_store(lc, entry)
+                add_new_element_to_store(lc, entry)
+
             print("AFTER: "+str(lc))
     
     def generate_id():
@@ -203,6 +221,10 @@ try:
                 id = random.randint(rs,re)
         return id
         
+    #properly sort board (normal sorting doesn't fork since the values are strings)
+    def sortBoard(board): 
+        integerParsedBoard = {int(float(k)): v for k, v in board.items()}
+        return sorted(integerParsedBoard.iteritems())
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
