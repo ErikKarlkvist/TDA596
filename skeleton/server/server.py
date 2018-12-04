@@ -27,6 +27,14 @@ try:
 
     log = []
 
+    monitor = -1
+
+    snapshot = False
+
+    #FOR MONITOR
+    countVessels = 0
+    finallog = []
+
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -97,6 +105,26 @@ try:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
 
+
+    def sendSnapshot():
+        global monitor, lc, node_id
+        if(str(node_id) == str(monitor)):
+
+            body = {
+                'entry': 'null',
+                'node': node_id,
+                'localClock': lc,
+                'snapshot': True
+                'action': 'snapshot'
+            }
+
+            snapshot = True
+
+            log.append(body)
+            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST'))
+            thread.deamon = True
+            thread.start()
+
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
     # ------------------------------------------------------------------------------------------------------
@@ -126,12 +154,14 @@ try:
                 'entry': new_entry,
                 'node': node_id,
                 'localClock': lc,
+                'snapshot': False
+                'action': 'post'
             }
 
             log.append(body)
             #generate_id()
-            add_new_element_to_store(lc, new_entry) # you might want to change None here
-            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST'))
+            add_new_element_to_store(lc, new_entry) 
+            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST')) #säger till de andra vesselsen vad min logg ligger på
             thread.deamon = True
             thread.start()
             return "Latest entry: " + new_entry #Returning true gives a weird error so we return a describing string instead
@@ -143,13 +173,12 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id
+        global board, node_id, log
 
         action = "" #action that determines modify or delete to be sent to propagate_to_vessels()
 
         entryStr = request.forms.get('entry') #used 'forms' to get the values of entry and delete
         deleteStr = request.forms.get('delete')
-
 
         try:
             if(deleteStr == "1"): 
@@ -169,14 +198,49 @@ try:
             print e
         return False
         
+    @app.post('/propagate/monitor')
+    def monitorLogs():
+        global countVessels, finalLog
+
+        if(countVessels < len(vessel_list)+1): #if you haven't received all vessels logs yet
+            vesselLog = json.loads(request.body.read())
+            finallog.append(vesselLog)
+            countVessels = countVessels+1
+        else:
+            sortFinalLog(finalLog) # when you've received them all, sort them
+
+    def sortFinalLog(logs):
+        print("sorting finallog")
+
+        body = body = {
+                'entry': 'null',
+                'node': node_id,
+                'localClock': lc,
+                'snapshot': False
+                'action': 'snapshot'
+            }
+
+        t = Thread(target = propagate_to_vessels,args =(('/propagate/snapshot/' + str(monitor)), None))
+        t.deamon = True
+        t.start()
+        return null
 
     @app.post('/propagate/<action>/<element_id>')
-    def propagation_received(action, element_id):
+    def propagation_received(action, element_id): #när jag får från nån annan vessel
 
         global lc, node_id
 
         body = json.loads(request.body.read())
         log.append(body)
+
+        if(body['snapshot'] == True):
+            snapshot = True
+            t = Thread(target = contact_vessel(str(monitor),"/propagate/monitor", json.dumps(log), 'POST'))#skicka din logg till monitorn
+            t.deamon = True
+            t.start()
+            while(snapshot == True):
+                time.sleep(1)
+
 
         entry = body['entry']
         rc = int(body['localClock'])
@@ -189,20 +253,6 @@ try:
 
         if(action == "add"):
             print("BEFORE: " +str(lc))
-            if rc > lc: # always take the largest clock
-                lc = rc
-                add_new_element_to_store(lc, entry)
-            elif rc == lc: # if equal, prioritize on node with lowest id
-                if node_id > int(body['node']): 
-                    other_entry = board[str(lc)]
-                    print("Other entry: " + other_entry)
-                    modify_element_in_store(lc, entry)
-                    lc = lc + 1
-                    add_new_element_to_store(lc, other_entry)
-                else: 
-                    lc = lc + 1
-                    add_new_element_to_store(lc, entry)
-            else: 
                 lc = lc + 1
                 add_new_element_to_store(lc, entry)
 
@@ -225,6 +275,14 @@ try:
     def sortBoard(board): 
         integerParsedBoard = {int(float(k)): v for k, v in board.items()}
         return sorted(integerParsedBoard.iteritems())
+
+
+    def initiateProgram():
+        global monitor
+        time.sleep(5)
+        #monitor = random.randint(1,len(vessel_list)+1)
+        monitor = 2
+
     # ------------------------------------------------------------------------------------------------------
     # EXECUTION
     # ------------------------------------------------------------------------------------------------------
@@ -239,6 +297,7 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
+        initiateProgram()
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
         for i in range(1, args.nbv):
