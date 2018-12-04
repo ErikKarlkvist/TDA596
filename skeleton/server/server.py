@@ -20,15 +20,12 @@ import requests
 # ------------------------------------------------------------------------------------------------------
 try:
     app = Bottle()
-
     board = {}
 
+    #FOR LAB3
     lc = 0
-
     log = []
-
     monitor = -1
-
     snapshot = False
 
     #FOR MONITOR
@@ -114,8 +111,7 @@ try:
                 'entry': 'null',
                 'node': node_id,
                 'localClock': lc,
-                'snapshot': True
-                'action': 'snapshot'
+                'snapshot': True,
             }
 
             snapshot = True
@@ -125,6 +121,19 @@ try:
             thread.deamon = True
             thread.start()
 
+    def sortFinalLog(logs):
+        print("sorting finallog")
+
+        body = body = {
+                'entry': 'null',
+                'node': node_id,
+                'localClock': lc,
+                'snapshot': False,
+            }
+
+        t = Thread(target = propagate_to_vessels,args =(('/propagate/snapshot/' + str(monitor)), None))
+        t.deamon = True
+        t.start()
     # ------------------------------------------------------------------------------------------------------
     # ROUTES
     # ------------------------------------------------------------------------------------------------------
@@ -154,12 +163,10 @@ try:
                 'entry': new_entry,
                 'node': node_id,
                 'localClock': lc,
-                'snapshot': False
-                'action': 'post'
+                'snapshot': False,
             }
 
             log.append(body)
-            #generate_id()
             add_new_element_to_store(lc, new_entry) 
             thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(lc), json.dumps(body), 'POST')) #säger till de andra vesselsen vad min logg ligger på
             thread.deamon = True
@@ -207,23 +214,7 @@ try:
             finallog.append(vesselLog)
             countVessels = countVessels+1
         else:
-            sortFinalLog(finalLog) # when you've received them all, sort them
-
-    def sortFinalLog(logs):
-        print("sorting finallog")
-
-        body = body = {
-                'entry': 'null',
-                'node': node_id,
-                'localClock': lc,
-                'snapshot': False
-                'action': 'snapshot'
-            }
-
-        t = Thread(target = propagate_to_vessels,args =(('/propagate/snapshot/' + str(monitor)), None))
-        t.deamon = True
-        t.start()
-        return null
+            sortFinalLog(finallog) # when you've received them all, sort them
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id): #när jag får från nån annan vessel
@@ -252,26 +243,14 @@ try:
             modify_element_in_store(element_id, entry)
 
         if(action == "add"):
-            print("BEFORE: " +str(lc))
+            print("BEFORE: " + str(lc))
                 lc = lc + 1
                 add_new_element_to_store(lc, entry)
 
             print("AFTER: "+str(lc))
     
-    def generate_id():
-        global board
-        id = 0
-        rs = (len(vessel_list)+1) # A start that is higher than the amount of vessels to avoid collisions
-        re = 10000001 #random end
-        if(len(board) == 0): #if board has length 0, just set random number
-            id = random.randint(rs,re)
-        else:
-            id = board.keys()[0] #access first key in board just to have a key that already exist in while loop
-            while(id in board): #if id is in board, retry until it's not
-                id = random.randint(rs,re)
-        return id
         
-    #properly sort board (normal sorting doesn't fork since the values are strings)
+    #properly sort board (normal sorting doesn't work since the values are strings)
     def sortBoard(board): 
         integerParsedBoard = {int(float(k)): v for k, v in board.items()}
         return sorted(integerParsedBoard.iteritems())
@@ -297,7 +276,7 @@ try:
         parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
-        initiateProgram()
+        #initiateProgram()
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
         for i in range(1, args.nbv):
@@ -313,4 +292,4 @@ try:
 except Exception as e:
         traceback.print_exc()
         while True:
-            time.sleep(60.)
+        time.sleep(60.)
