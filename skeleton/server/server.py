@@ -27,7 +27,7 @@ try:
 
     log = []
 
-    allLogs = []
+    otherLogs = {}
 
 
 
@@ -215,17 +215,15 @@ try:
     @app.get("/take_snapshot/")
     def take_snapshot():
         global node_id, log
-        print("MY LOG:" log)
         return json.dumps(log)
 
 
     def sync():
-        global allLogs
-        time.sleep(5)
+        global otherLogs
+        time.sleep(10)
         start_receiving_logs()
-        #logs = getAllLogs()
-        time.sleep(5)
-        print(allLogs)
+        print(otherLogs)
+        
         sync()
         #compare logs and define a global log
         #send log to others
@@ -233,19 +231,19 @@ try:
 
 
     def start_receiving_logs():
-        global node_id, vessel_list
+        global node_id, vessel_list, otherLogs
         for vessel_id, vessel_ip in vessel_list.items():
             if int(vessel_id) != node_id: # don't propagate to yourself
-                t = Thread(target = receive_log, args =('http://{}{}'.format(vessel_ip,"/take_snapshot/")))
-                t.deamon = True
-                t.start()
-        
-        print(res)
+                res = requests.get('http://{}{}'.format(vessel_ip,"/take_snapshot/"))
+                
+                if res.status_code == 200:
+                    otherLogs[str(vessel_id)] = res.content
+                #t = Thread(target = receive_log, args =('http://{}{}'.format(vessel_ip,"/take_snapshot/")))
+                #t.deamon = True
+                #t.start()
+    
 
-    def receive_log(ip):
-        res = requests.get(ip)
-        if res.status_code == 200
-            allLogs.append(res)
+
 
 
     #properly sort board (normal sorting doesn't fork since the values are strings)
