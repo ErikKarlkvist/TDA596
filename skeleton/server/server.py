@@ -27,6 +27,9 @@ try:
 
     log = []
 
+    allLogs = []
+
+
 
 
     # ------------------------------------------------------------------------------------------------------
@@ -126,6 +129,7 @@ try:
                 'entry': new_entry,
                 'node': node_id,
                 'localClock': lc,
+                'action': "add"
             }
 
             log.append(body)
@@ -207,20 +211,43 @@ try:
                 add_new_element_to_store(lc, entry)
 
             print("AFTER: "+str(lc))
-    
-    def generate_id():
-        global board
-        id = 0
-        rs = (len(vessel_list)+1) # A start that is higher than the amount of vessels to avoid collisions
-        re = 10000001 #random end
-        if(len(board) == 0): #if board has length 0, just set random number
-            id = random.randint(rs,re)
-        else:
-            id = board.keys()[0] #access first key in board just to have a key that already exist in while loop
-            while(id in board): #if id is in board, retry until it's not
-                id = random.randint(rs,re)
-        return id
+
+    @app.get("/take_snapshot/")
+    def take_snapshot():
+        global node_id, log
+        print("MY LOG:" log)
+        return json.dumps(log)
+
+
+    def sync():
+        global allLogs
+        time.sleep(5)
+        start_receiving_logs()
+        #logs = getAllLogs()
+        time.sleep(5)
+        print(allLogs)
+        sync()
+        #compare logs and define a global log
+        #send log to others
+        #create board based on log
+
+
+    def start_receiving_logs():
+        global node_id, vessel_list
+        for vessel_id, vessel_ip in vessel_list.items():
+            if int(vessel_id) != node_id: # don't propagate to yourself
+                t = Thread(target = receive_log, args =('http://{}{}'.format(vessel_ip,"/take_snapshot/")))
+                t.deamon = True
+                t.start()
         
+        print(res)
+
+    def receive_log(ip):
+        res = requests.get(ip)
+        if res.status_code == 200
+            allLogs.append(res)
+
+
     #properly sort board (normal sorting doesn't fork since the values are strings)
     def sortBoard(board): 
         integerParsedBoard = {int(float(k)): v for k, v in board.items()}
@@ -242,6 +269,9 @@ try:
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
         for i in range(1, args.nbv):
+            t = Thread(target = sync,args =(""))
+            t.deamon = True
+            t.start()
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
