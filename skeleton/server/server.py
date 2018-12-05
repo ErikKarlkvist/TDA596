@@ -29,6 +29,8 @@ try:
 
     otherLogs = {}
 
+    syncing = False
+
 
 
 
@@ -180,7 +182,7 @@ try:
         global lc, node_id
 
         body = json.loads(request.body.read())
-        log.append(body)
+        #log.append(body)
 
         entry = body['entry']
         rc = int(body['localClock'])
@@ -214,20 +216,45 @@ try:
 
     @app.get("/take_snapshot/")
     def take_snapshot():
-        global node_id, log
+        global node_id, log, syncing
+        syncing = True
         return json.dumps(log)
 
-
     def sync():
-        global otherLogs
+        global otherLogs, log, node_id, syncing
         time.sleep(10)
-        start_receiving_logs()
-        print(otherLogs)
-        
+        if not syncing:
+            
+            start_receiving_logs()
+            otherLogs[str(node_id)] = log
+            #each log contains what they have sent
+            completeLog = []
+            notDone = True
+            while(True): #keep looping until all sublogs are empty
+                nextElem = {}
+                allIsEmpty = True
+                for vessel_id, otherLog in otherLogs.items():
+                    if(len(otherLog) > 0):
+                        allIsEmpty = False # if this is every reached we must loop again
+                        if shouldReplaceNextElem(nextElem, otherLog):
+                            nextElem = otherLog[0]
+                            del otherLog[0]
+                            otherLogs[vessel_id] = otherLog
+
+                #check lc of last, set nextElem lc to this            
+                completeLog.append(nextElem)
+                if allIsEmpty:
+                    notDone = False: #we are done
+
+            print(other)
+            syncing = False #set in a propapagation somewhere instead
         sync()
         #compare logs and define a global log
         #send log to others
         #create board based on log
+
+    def shouldReplaceNextElem(nextElem, otherLog):
+        return otherLog[0]['lc'] < nextElem['lc'] or (otherLog[0]['lc'] == nextElem['lc'] and otherLog[0]['node'] < nextElem['node'])
 
 
     def start_receiving_logs():
