@@ -11,7 +11,6 @@ import time
 import json
 import argparse
 import random
-import time
 from threading import Thread
 
 from bottle import Bottle, run, request, template, HTTPResponse
@@ -122,7 +121,7 @@ try:
     @app.post('/board')
     def client_add_received():
 
-        global board, lc, node_id
+        global board, lc, node_id, log
         try:
             lc = 1 + int(lc)
 
@@ -153,7 +152,8 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id
+        global board, node_id, log
+        print("ATION RECEVED")
 
         action = ""  # action that determines modify or delete to be sent to propagate_to_vessels()
 
@@ -164,21 +164,39 @@ try:
         try:
             if(deleteStr == "1"):
                 action = "delete"
+                body = {
+                    'entry': entryStr,
+                    'node': node_id,
+                    'localClock': element_id,
+                    'action': "delete"
+                }
+                log.append(body)
                 delete_element_from_store(element_id)
 
             if(deleteStr == "0"):
+                print("modify")
                 action = "modify"
+                body = {
+                    'entry': entryStr,
+                    'node': node_id,
+                    'localClock': element_id,
+                    'action': "modify",
+                    "oldEntry": board[str(element_id)]
+                }
+                log.append(body)
+                print(log)
                 modify_element_in_store(element_id, entryStr)
 
-            t = Thread(target=propagate_to_vessels, args=(
-                ('/propagate/' + action + '/' + str(element_id)), entryStr))
-            t.deamon = True
-            t.start()
+            #t = Thread(target=propagate_to_vessels, args=(
+           #     ('/propagate/' + action + '/' + str(element_id)), entryStr))
+          #  t.deamon = True
+          # t.start()
 
             # Returning true gives a weird error so we return a describing string instead
             return "Action successfull"
         except Exception as e:
-            print e
+            print("FAIL")
+            print(e)
         return False
 
     @app.post('/propagate/<action>/<element_id>')
@@ -191,12 +209,6 @@ try:
 
         entry = body['entry']
         rc = int(body['localClock'])
-
-        if(action == "delete"):
-            delete_element_from_store(element_id)
-
-        if(action == "modify"):
-            modify_element_in_store(element_id, entry)
 
         if(action == "add"):
             print("BEFORE: " + str(lc))
@@ -225,39 +237,78 @@ try:
         syncing = True
         return json.dumps(log)
 
+    @app.post("/sync_snapshot/")
+    def take_snapshot():
+        global board
+        syncing = False
+        newBoard = json.loads(request.body.read())
+        board = newBoard
+
     def sync():
-        global otherLogs, log, node_id, syncing
-        time.sleep(10)
+        global otherLogs, log, node_id, syncing, board
+        time.sleep(20)
         if not syncing:
+            syncing = True
+            print("SYNCING")
             start_receiving_logs()
-            otherLogs[str(node_id)] = log
+            otherLogs[str(node_id)] = log[:]
             # each log contains what they have sent
             completeLog = []
-            notDone = True
-            while(True):  # keep looping until all sublogs are empty
+            allIsEmpty = False
+            while(not allIsEmpty):  # keep looping until all sublogs are empty
                 nextElem = {}
+                deletingVesselId = -1
+                deletingLog = []
                 allIsEmpty = True
                 for vessel_id, otherLog in otherLogs.items():
                     if(len(otherLog) > 0):
                         allIsEmpty = False  # if this is every reached we must loop again
                         if shouldReplaceNextElem(nextElem, otherLog):
                             nextElem = otherLog[0]
-                            del otherLog[0]
-                            otherLogs[vessel_id] = otherLog
+                            deletingVesselId = vessel_id
+                            deletingLog = otherLog
 
                 # check lc of last, set nextElem lc to this
-                completeLog.append(nextElem)
-                notDone = allIsEmpty  # we are done
+                print("NEXT ELEM: " + str(nextElem))
+                if len(nextElem) > 0:
+                    if nextElem['action'] == "add":
+                        completeLog.append(nextElem)
+                    elif nextElem['action'] == "modify":
+                        for index in range(len(completeLog)):
+                            if completeLog[index]["entry"] == nextElem["oldEntry"]:
+                                completeLog[index]["entry"] = nextElem["entry"]
+                    else:
+                        for index in range(len(completeLog)):
+                            if completeLog[index]["entry"] == nextElem["entry"]:
+                                del completeLog[index]
+                    del deletingLog[0]
+                    otherLogs[deletingVesselId] = deletingLog
 
-            print(completeLog)
+
+            print("COMPLETE LOG: " + str(completeLog))
+            newBoard = createBoardFromLog(completeLog)
+            board = newBoard
+            sendNewBoard(newBoard)
+            #propagate new board
             syncing = False  # set in a propapagation somewhere instead
         sync()
-        # compare logs and define a global log
-        # send log to others
-        # create board based on log
+
+    def sendNewBoard(newBoard):
+        t = Thread(target=propagate_to_vessels, args=("/sync_snapshot/", json.dumps(newBoard), 'POST'))
+        t.deamon = True
+        t.start()
 
     def shouldReplaceNextElem(nextElem, otherLog):
-        return otherLog[0]['lc'] < nextElem['lc'] or (otherLog[0]['lc'] == nextElem['lc'] and otherLog[0]['node'] < nextElem['node'])
+        if len(nextElem) > 0:
+            return otherLog[0]['localClock'] < nextElem['localClock'] or (otherLog[0]['localClock'] == nextElem['localClock'] and otherLog[0]['node'] < nextElem['node'])
+        else: 
+            return True  
+
+    def createBoardFromLog(log):
+        newBoard = {}
+        for index in range(len(log)):
+            newBoard[index] = log[index]['entry']
+        return newBoard
 
     def start_receiving_logs():
         global node_id, vessel_list, otherLogs
@@ -267,7 +318,7 @@ try:
                     'http://{}{}'.format(vessel_ip, "/take_snapshot/"))
 
                 if res.status_code == 200:
-                    otherLogs[str(vessel_id)] = res.content
+                    otherLogs[str(vessel_id)] = json.loads(res.content)
                 #t = Thread(target = receive_log, args =('http://{}{}'.format(vessel_ip,"/take_snapshot/")))
                 #t.deamon = True
                 # t.start()
@@ -297,7 +348,7 @@ try:
         node_id = args.nid
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
-        for i in range(1, args.nbv):
+        for i in range(1, args.nbv+1):
             t = Thread(target=sync, args=(""))
             t.deamon = True
             t.start()
