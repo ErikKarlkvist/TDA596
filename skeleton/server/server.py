@@ -125,15 +125,14 @@ try:
         global board, lc, node_id, log, allLog
         try:
             lc = 1 + int(lc)
-            uniqueID = "N" + str(node_id) + "LC" + str(lc)
+
             new_entry = request.forms.get('entry')
 
             body = {
                 'entry': new_entry,
                 'node': node_id,
-                'action': "add",
-                "uniqueID": uniqueID
-                "localClock": lc
+                'localClock': lc,
+                'action': "add"
             }
 
             log.append(body)
@@ -163,7 +162,6 @@ try:
         # used 'forms' to get the values of entry and delete
         entryStr = request.forms.get('entry')
         deleteStr = request.forms.get('delete')
-        
         try:
             if(deleteStr == "1"):
                 action = "delete"
@@ -171,7 +169,7 @@ try:
                 body = {
                     'entry': entryStr,
                     'node': node_id,
-                    'uniqueID': element_id,
+                    'localClock': element_id,
                     'action': "delete"
                 }
                 log.append(body)
@@ -184,7 +182,7 @@ try:
                 body = {
                     'entry': entryStr,
                     'node': node_id,
-                    'uniqueID': element_id,
+                    'localClock': element_id,
                     'action': "modify",
                     "oldEntry": board[str(element_id)]
                 }
@@ -215,7 +213,6 @@ try:
 
         entry = body['entry']
         rc = int(body['localClock'])
-        uniqueID = body['uniqueID']
 
         if(action == "add"): #only add action is propagated here
             print("BEFORE: " + str(lc))
@@ -236,6 +233,7 @@ try:
                 lc = lc + 1
                 add_new_element_to_store(lc, entry)
 
+            body['localId'] = lc
             allLog.append(body)
        
         
@@ -282,12 +280,12 @@ try:
                 # check lc of last, set nextElem lc to this
                 if len(nextElem) > 0:
                     if nextElem['action'] == "add":
-                        completeLog[nextElem['uniqueID']] = nextElem
-                    elif nextElem['action'] == "modify" and nextElem['uniqueID'] not in deletedIds:
-                        completeLog[nextElem['uniqueID']] = nextElem
+                        completeLog[str(nextElem['localClock'])] = nextElem
+                    elif nextElem['action'] == "modify" and nextElem['localClock'] not in deletedIds:
+                        completeLog[str(nextElem['localClock'])] = nextElem
                     else:
-                        deletedIds.append(nextElem['uniqueID'])
-                        del completeLog[nextElem['uniqueID']] # try catch this, might be deleted twice
+                        deletedIds.append(str(nextElem['localClock']))
+                        del completeLog[str(nextElem['localClock'])]
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
 
@@ -312,8 +310,8 @@ try:
 
     def createBoardFromLog(log):
         newBoard = {}
-        for uniqueID, item in log.items():
-            newBoard[uniqueID] = item['entry']
+        for localClock, item in log.items():
+            newBoard[str(localClock)] = item['entry']
         return newBoard
 
     def start_receiving_logs():
