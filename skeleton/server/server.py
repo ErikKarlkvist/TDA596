@@ -24,7 +24,8 @@ try:
 
     lc = 0
 
-    log = []
+    log = [] # my personal log
+    allLog = [] #includes personal log and incoming
 
     otherLogs = {}
 
@@ -121,20 +122,22 @@ try:
     @app.post('/board')
     def client_add_received():
 
-        global board, lc, node_id, log
+        global board, lc, node_id, log, allLog
         try:
             lc = 1 + int(lc)
-
+            uniqueID = "N" + str(node_id) + "LC" + str(lc)
             new_entry = request.forms.get('entry')
 
             body = {
                 'entry': new_entry,
                 'node': node_id,
-                'localClock': lc,
-                'action': "add"
+                'action': "add",
+                "uniqueID": uniqueID
+                "localClock": lc
             }
 
             log.append(body)
+            allLog.append(body)
             # generate_id()
             # you might want to change None here
             add_new_element_to_store(lc, new_entry)
@@ -152,7 +155,7 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id, log
+        global board, node_id, log, allLog
         print("ATION RECEVED")
 
         action = ""  # action that determines modify or delete to be sent to propagate_to_vessels()
@@ -160,17 +163,19 @@ try:
         # used 'forms' to get the values of entry and delete
         entryStr = request.forms.get('entry')
         deleteStr = request.forms.get('delete')
-
+        
         try:
             if(deleteStr == "1"):
                 action = "delete"
+
                 body = {
                     'entry': entryStr,
                     'node': node_id,
-                    'localClock': element_id,
+                    'uniqueID': element_id,
                     'action': "delete"
                 }
                 log.append(body)
+                allLog.append(body)
                 delete_element_from_store(element_id)
 
             if(deleteStr == "0"):
@@ -179,11 +184,12 @@ try:
                 body = {
                     'entry': entryStr,
                     'node': node_id,
-                    'localClock': element_id,
+                    'uniqueID': element_id,
                     'action': "modify",
                     "oldEntry": board[str(element_id)]
                 }
                 log.append(body)
+                allLog.append(body)
                 print(log)
                 modify_element_in_store(element_id, entryStr)
 
@@ -202,15 +208,16 @@ try:
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
 
-        global lc, node_id
+        global lc, node_id, allLog
 
         body = json.loads(request.body.read())
         # log.append(body)
 
         entry = body['entry']
         rc = int(body['localClock'])
+        uniqueID = body['uniqueID']
 
-        if(action == "add"):
+        if(action == "add"): #only add action is propagated here
             print("BEFORE: " + str(lc))
             if rc > lc:  # always take the largest clock
                 lc = rc
@@ -229,7 +236,9 @@ try:
                 lc = lc + 1
                 add_new_element_to_store(lc, entry)
 
-            print("AFTER: "+str(lc))
+            allLog.append(body)
+       
+        
 
     @app.get("/take_snapshot/")
     def take_snapshot():
@@ -245,16 +254,18 @@ try:
         board = newBoard
 
     def sync():
-        global otherLogs, log, node_id, syncing, board
+        global otherLogs, log, node_id, syncing, board, allLog
         time.sleep(20)
         if not syncing:
             syncing = True
             print("SYNCING")
+            print("ALL LOG " + str(allLog))
             start_receiving_logs()
-            otherLogs[str(node_id)] = log[:]
+            otherLogs[str(node_id)] = log[:] ## clone my log, otherwise we edit at same refernce
             # each log contains what they have sent
-            completeLog = []
+            completeLog = {}
             allIsEmpty = False
+            deletedIds = []
             while(not allIsEmpty):  # keep looping until all sublogs are empty
                 nextElem = {}
                 deletingVesselId = -1
@@ -269,23 +280,18 @@ try:
                             deletingLog = otherLog
 
                 # check lc of last, set nextElem lc to this
-                print("NEXT ELEM: " + str(nextElem))
                 if len(nextElem) > 0:
                     if nextElem['action'] == "add":
-                        completeLog.append(nextElem)
-                    elif nextElem['action'] == "modify":
-                        for index in range(len(completeLog)):
-                            if completeLog[index]["entry"] == nextElem["oldEntry"]:
-                                completeLog[index]["entry"] = nextElem["entry"]
+                        completeLog[nextElem['uniqueID']] = nextElem
+                    elif nextElem['action'] == "modify" and nextElem['uniqueID'] not in deletedIds:
+                        completeLog[nextElem['uniqueID']] = nextElem
                     else:
-                        for index in range(len(completeLog)):
-                            if completeLog[index]["entry"] == nextElem["entry"]:
-                                del completeLog[index]
+                        deletedIds.append(nextElem['uniqueID'])
+                        del completeLog[nextElem['uniqueID']] # try catch this, might be deleted twice
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
 
 
-            print("COMPLETE LOG: " + str(completeLog))
             newBoard = createBoardFromLog(completeLog)
             board = newBoard
             sendNewBoard(newBoard)
@@ -306,8 +312,8 @@ try:
 
     def createBoardFromLog(log):
         newBoard = {}
-        for index in range(len(log)):
-            newBoard[index] = log[index]['entry']
+        for uniqueID, item in log.items():
+            newBoard[uniqueID] = item['entry']
         return newBoard
 
     def start_receiving_logs():
