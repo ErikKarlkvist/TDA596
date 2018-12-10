@@ -146,7 +146,7 @@ try:
                 "/propagate/add/"+str(lc), json.dumps(body), 'POST'))
             thread.deamon = True
             thread.start()
-
+            print(lc)
             lc = 1 + int(lc) # increment local clock
             # Returning true gives a weird error so we return a describing string instead
             return "Latest entry: " + new_entry
@@ -238,7 +238,7 @@ try:
             syncing = True
             print("SYNCING")
             start_receiving_logs()
-            completeLog = {}
+            completeLog = []
             otherLogs[str(node_id)] = log[:] ## clone my log, otherwise we edit at same refernce
             # each log contains what they have sent
             allIsEmpty = False
@@ -260,7 +260,7 @@ try:
                 # check lc of last, set nextElem lc to this
                 if len(nextElem) > 0:
                     if nextElem['action'] == "add":
-                        completeLog[str(nextElem['uniqueID'])] = nextElem # add more elements
+                        completeLog.append(nextElem) # add more elements
                     elif nextElem['action'] == "modify":
                         modifyLog[str(nextElem['uniqueID'])] = nextElem
                     else:
@@ -270,14 +270,14 @@ try:
             
             for uniqueID, elem in modifyLog.items():
                 print(elem)
-                completeLog[uniqueID] = elem
+                for index in range(len(completeLog)):
+                    if completeLog[index]['uniqueID'] == uniqueID:
+                        completeLog[index] = elem 
 
             for uniqueID, elem in deleteLog.items():
-                try:
-                    del completeLog[uniqueID]
-                    pass
-                except Exception as e:
-                    pass
+                for index in range(len(completeLog)):
+                    if completeLog[index]['uniqueID'] == uniqueID:
+                        del completeLog[index]
 
 
             board = createBoardFromLog(completeLog)
@@ -306,9 +306,9 @@ try:
         global uniqueIDMap
 
         newBoard = {}
-        index = 0
-        for uniqueID, item in completeLog.items():
-            uniqueIDMap[uniqueID] = str(index)
+        for index in range(len(completeLog))
+            item = completeLog[index]
+            uniqueIDMap[item['uniqueID']] = str(index)
             newBoard[str(index)] = item['entry']
             index = index + 1
         return newBoard
