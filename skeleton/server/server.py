@@ -278,6 +278,7 @@ try:
                 for index in range(len(completeLog)):
                     if completeLog[index]['uniqueID'] == uniqueID:
                         del completeLog[index]
+                        break
 
 
             board = createBoardFromLog(completeLog)
@@ -306,7 +307,7 @@ try:
         global uniqueIDMap
 
         newBoard = {}
-        for index in range(len(completeLog))
+        for index in range(len(completeLog)):
             item = completeLog[index]
             uniqueIDMap[item['uniqueID']] = str(index)
             newBoard[str(index)] = item['entry']
