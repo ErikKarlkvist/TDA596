@@ -158,7 +158,7 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id, log, uniqueIDMap
+        global board, node_id, log, uniqueIDMap, lc
 
         action = ""  # action that determines modify or delete to be sent to propagate_to_vessels()
 
@@ -183,10 +183,11 @@ try:
             body = {
                 'entry': entryStr,
                 'node': node_id,
-                'localClock': element_id,
+                'localClock': lc,
                 'action': action,
                 'uniqueID': uniqueID
             }
+            lc = 1 + int(lc)
             log.append(body)
             return "Action successfull"
         except Exception as e:
@@ -228,13 +229,12 @@ try:
         syncing = False
         data = json.loads(request.body.read())
         board = data['board']
-        print(uniqueIDMap)
         uniqueIDMap = data['uniqueIDMap']
 
     def sync():
         global otherLogs, log, node_id, syncing, board
         time.sleep(5)
-        if node_id == 1:
+        if not syncing:
             syncing = True
             print("SYNCING")
             start_receiving_logs()
@@ -243,6 +243,7 @@ try:
             # each log contains what they have sent
             allIsEmpty = False
             deleteLog = {}
+            modifyLog = {}
             while(not allIsEmpty):  # keep looping until all sublogs are empty
                 nextElem = {}
                 deletingVesselId = -1
@@ -258,18 +259,21 @@ try:
 
                 # check lc of last, set nextElem lc to this
                 if len(nextElem) > 0:
-                    if nextElem['action'] == "add" or nextElem['action'] == "modify":
+                    if nextElem['action'] == "add":
                         completeLog[str(nextElem['uniqueID'])] = nextElem # add more elements
+                    elif nextElem['action'] == "modify":
+                        modifyLog[str(nextElem['uniqueID'])] = nextElem
                     else:
                         deleteLog[str(nextElem['uniqueID'])] = nextElem
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
             
+            for uniqueID, elem in modifyLog.items():
+                print(elem)
+                completeLog[uniqueID] = elem
+
             for uniqueID, elem in deleteLog.items():
                 try:
-                    print("delete")
-                    print(uniqueID)
-                    print(completeLog[uniqueID])
                     del completeLog[uniqueID]
                     pass
                 except Exception as e:
