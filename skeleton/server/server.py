@@ -25,7 +25,7 @@ try:
     lc = 0
 
     log = [] # my personal log
-    allLog = [] #includes personal log and incoming
+    uniqueIDMap = {} # maps unique id with current position in board
 
     otherLogs = {}
 
@@ -122,21 +122,23 @@ try:
     @app.post('/board')
     def client_add_received():
 
-        global board, lc, node_id, log, allLog
+        global board, lc, node_id, log, uniqueIDMap
         try:
             lc = 1 + int(lc)
 
             new_entry = request.forms.get('entry')
+            uniqueID = "N" + str(node_id) + "LC" + str(lc)
 
             body = {
                 'entry': new_entry,
                 'node': node_id,
                 'localClock': lc,
-                'action': "add"
+                'action': "add",
+                'uniqueID': uniqueID
             }
 
             log.append(body)
-            allLog.append(body)
+            uniqueIDMap[uniqueID] = str(lc) # set unique id to lc position
             # generate_id()
             # you might want to change None here
             add_new_element_to_store(lc, new_entry)
@@ -154,49 +156,36 @@ try:
     @app.post('/board/<element_id:int>/')
     def client_action_received(element_id):
 
-        global board, node_id, log, allLog
-        print("ATION RECEVED")
+        global board, node_id, log, uniqueIDMap
 
         action = ""  # action that determines modify or delete to be sent to propagate_to_vessels()
 
         # used 'forms' to get the values of entry and delete
         entryStr = request.forms.get('entry')
         deleteStr = request.forms.get('delete')
+
+        uniqueID = "unknown"
+        for key, val in uniqueIDMap.items():
+            if val == element_id:
+                print("found uniqueID" + key)
+                uniqueID = val
         try:
             if(deleteStr == "1"):
                 action = "delete"
-
-                body = {
-                    'entry': entryStr,
-                    'node': node_id,
-                    'localClock': element_id,
-                    'action': "delete"
-                }
-                log.append(body)
-                allLog.append(body)
                 delete_element_from_store(element_id)
 
             if(deleteStr == "0"):
-                print("modify")
                 action = "modify"
-                body = {
-                    'entry': entryStr,
-                    'node': node_id,
-                    'localClock': element_id,
-                    'action': "modify",
-                    "oldEntry": board[str(element_id)]
-                }
-                log.append(body)
-                allLog.append(body)
-                print(log)
                 modify_element_in_store(element_id, entryStr)
 
-            #t = Thread(target=propagate_to_vessels, args=(
-           #     ('/propagate/' + action + '/' + str(element_id)), entryStr))
-          #  t.deamon = True
-          # t.start()
-
-            # Returning true gives a weird error so we return a describing string instead
+            body = {
+                'entry': entryStr,
+                'node': node_id,
+                'localClock': element_id,
+                'action': action,
+                'uniqueID': uniqueID
+            }
+            log.append(body)
             return "Action successfull"
         except Exception as e:
             print("FAIL")
@@ -206,7 +195,7 @@ try:
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
 
-        global lc, node_id, allLog
+        global lc, node_id
 
         body = json.loads(request.body.read())
         # log.append(body)
@@ -234,7 +223,6 @@ try:
                 add_new_element_to_store(lc, entry)
 
             body['localId'] = lc
-            allLog.append(body)
        
         
 
@@ -245,19 +233,19 @@ try:
         return json.dumps(log)
 
     @app.post("/sync_snapshot/")
-    def take_snapshot():
+    def sync_snapshot():
         global board
         syncing = False
-        newBoard = json.loads(request.body.read())
-        board = newBoard
+        completeLog = json.loads(request.body.read())
+        mapUniqueIDToLC(completeLog) #set localclock values in map so that we can modify and delete
+        board = createBoardFromLog(completeLog)
 
     def sync():
-        global otherLogs, log, node_id, syncing, board, allLog
+        global otherLogs, log, node_id, syncing, board
         time.sleep(20)
         if not syncing:
             syncing = True
             print("SYNCING")
-            print("ALL LOG " + str(allLog))
             start_receiving_logs()
             otherLogs[str(node_id)] = log[:] ## clone my log, otherwise we edit at same refernce
             # each log contains what they have sent
@@ -289,16 +277,15 @@ try:
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
 
-
-            newBoard = createBoardFromLog(completeLog)
-            board = newBoard
-            sendNewBoard(newBoard)
+            mapUniqueIDToLC(completeLog)
+            board = createBoardFromLog(completeLog)
+            sendNewLog(completeLog)
             #propagate new board
             syncing = False  # set in a propapagation somewhere instead
         sync()
 
-    def sendNewBoard(newBoard):
-        t = Thread(target=propagate_to_vessels, args=("/sync_snapshot/", json.dumps(newBoard), 'POST'))
+    def sendNewLog(completeLog):
+        t = Thread(target=propagate_to_vessels, args=("/sync_snapshot/", json.dumps(completeLog), 'POST'))
         t.deamon = True
         t.start()
 
@@ -307,6 +294,11 @@ try:
             return otherLog[0]['localClock'] < nextElem['localClock'] or (otherLog[0]['localClock'] == nextElem['localClock'] and otherLog[0]['node'] < nextElem['node'])
         else: 
             return True  
+
+    def mapUniqueIDToLC(completeLog):
+        global uniqueIDMap
+        for localClock, item in completeLog.items():
+            uniqueIDMap[item['uniqueID']] = localClock
 
     def createBoardFromLog(log):
         newBoard = {}
