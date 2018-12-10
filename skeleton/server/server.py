@@ -26,7 +26,6 @@ try:
 
     log = [] # my personal log
     uniqueIDMap = {} # maps unique id with current position in board
-
     otherLogs = {}
 
     syncing = False
@@ -124,7 +123,7 @@ try:
 
         global board, lc, node_id, log, uniqueIDMap
         try:
-            lc = 1 + int(lc)
+
 
             new_entry = request.forms.get('entry')
             uniqueID = "N" + str(node_id) + "LC" + str(lc)
@@ -137,6 +136,7 @@ try:
                 'uniqueID': uniqueID
             }
 
+            
             log.append(body)
             uniqueIDMap[uniqueID] = str(lc) # set unique id to lc position
             # generate_id()
@@ -146,6 +146,8 @@ try:
                 "/propagate/add/"+str(lc), json.dumps(body), 'POST'))
             thread.deamon = True
             thread.start()
+
+            lc = 1 + int(lc) # increment local clock
             # Returning true gives a weird error so we return a describing string instead
             return "Latest entry: " + new_entry
 
@@ -166,9 +168,9 @@ try:
 
         uniqueID = "unknown"
         for key, val in uniqueIDMap.items():
-            if val == element_id:
+            if str(val) == str(element_id):
                 print("found uniqueID" + key)
-                uniqueID = val
+                uniqueID = key
         try:
             if(deleteStr == "1"):
                 action = "delete"
@@ -202,27 +204,15 @@ try:
 
         entry = body['entry']
         rc = int(body['localClock'])
+        uniqueID = body['uniqueID']
+        
 
         if(action == "add"): #only add action is propagated here
-            print("BEFORE: " + str(lc))
-            if rc > lc:  # always take the largest clock
+            if rc >= lc:  # always take the largest clock
                 lc = rc
-                add_new_element_to_store(lc, entry)
-            elif rc == lc:  # if equal, prioritize on node with lowest id
-                if node_id > int(body['node']):
-                    other_entry = board[str(lc)]
-                    print("Other entry: " + other_entry)
-                    modify_element_in_store(lc, entry)
-                    lc = lc + 1
-                    add_new_element_to_store(lc, other_entry)
-                else:
-                    lc = lc + 1
-                    add_new_element_to_store(lc, entry)
-            else:
-                lc = lc + 1
-                add_new_element_to_store(lc, entry)
-
-            body['localId'] = lc
+            uniqueIDMap[uniqueID] = str(lc) # set unique id to lc position
+            add_new_element_to_store(lc, entry)
+            lc = lc + 1
        
         
 
@@ -234,24 +224,25 @@ try:
 
     @app.post("/sync_snapshot/")
     def sync_snapshot():
-        global board
+        global board, completeLog
         syncing = False
-        completeLog = json.loads(request.body.read())
-        mapUniqueIDToLC(completeLog) #set localclock values in map so that we can modify and delete
-        board = createBoardFromLog(completeLog)
+        data = json.loads(request.body.read())
+        board = data['board']
+        completeLog = data['completeLog']
+        uniqueIDMap = data['uniqueIDMap']
 
     def sync():
         global otherLogs, log, node_id, syncing, board
         time.sleep(20)
-        if not syncing:
+        if node_id == 1:
             syncing = True
             print("SYNCING")
             start_receiving_logs()
+            completeLog = {}
             otherLogs[str(node_id)] = log[:] ## clone my log, otherwise we edit at same refernce
             # each log contains what they have sent
-            completeLog = {}
             allIsEmpty = False
-            deletedIds = []
+            deleteLog = {}
             while(not allIsEmpty):  # keep looping until all sublogs are empty
                 nextElem = {}
                 deletingVesselId = -1
@@ -267,25 +258,36 @@ try:
 
                 # check lc of last, set nextElem lc to this
                 if len(nextElem) > 0:
-                    if nextElem['action'] == "add":
-                        completeLog[str(nextElem['localClock'])] = nextElem
-                    elif nextElem['action'] == "modify" and nextElem['localClock'] not in deletedIds:
-                        completeLog[str(nextElem['localClock'])] = nextElem
+                    if nextElem['action'] == "add" or nextElem['action'] == "modify":
+                        completeLog[str(nextElem['uniqueID'])] = nextElem # add more elements
                     else:
-                        deletedIds.append(str(nextElem['localClock']))
-                        del completeLog[str(nextElem['localClock'])]
+                        deleteLog[str(nextElem['uniqueID'])] = nextElem
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
+            
+            for uniqueID, elem in deleteLog.items():
+                try:
+                    print("delete")
+                    print(uniqueID)
+                    del completeLog[str(uniqueID)]
+                except Exception as e:
+                    pass
 
-            mapUniqueIDToLC(completeLog)
+
             board = createBoardFromLog(completeLog)
             sendNewLog(completeLog)
             #propagate new board
             syncing = False  # set in a propapagation somewhere instead
         sync()
 
-    def sendNewLog(completeLog):
-        t = Thread(target=propagate_to_vessels, args=("/sync_snapshot/", json.dumps(completeLog), 'POST'))
+    def sendNewLog(completeLog):   
+        global uniqueIDMap, board
+        data = {
+            'completeLog': completeLog,
+            'board': board,
+            'uniqueIDMap': uniqueIDMap
+        }
+        t = Thread(target=propagate_to_vessels, args=("/sync_snapshot/", json.dumps(data), 'POST'))
         t.deamon = True
         t.start()
 
@@ -295,15 +297,15 @@ try:
         else: 
             return True  
 
-    def mapUniqueIDToLC(completeLog):
+    def createBoardFromLog(completeLog):
         global uniqueIDMap
-        for localClock, item in completeLog.items():
-            uniqueIDMap[item['uniqueID']] = localClock
 
-    def createBoardFromLog(log):
         newBoard = {}
-        for localClock, item in log.items():
-            newBoard[str(localClock)] = item['entry']
+        index = 0
+        for uniqueID, item in completeLog.items():
+            uniqueIDMap[uniqueID] = index
+            newBoard[str(index)] = item['entry']
+            index = index + 1
         return newBoard
 
     def start_receiving_logs():
@@ -345,12 +347,12 @@ try:
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
         for i in range(1, args.nbv+1):
-            t = Thread(target=sync, args=(""))
-            t.deamon = True
-            t.start()
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
+            t = Thread(target=sync, args=(""))
+            t.deamon = True
+            t.start()
             run(app, host=vessel_list[str(node_id)], port=port)
         except Exception as e:
             print e
