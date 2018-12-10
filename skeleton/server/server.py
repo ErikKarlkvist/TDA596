@@ -224,16 +224,16 @@ try:
 
     @app.post("/sync_snapshot/")
     def sync_snapshot():
-        global board, completeLog
+        global board, completeLog, uniqueIDMap
         syncing = False
         data = json.loads(request.body.read())
         board = data['board']
-        completeLog = data['completeLog']
+        print(uniqueIDMap)
         uniqueIDMap = data['uniqueIDMap']
 
     def sync():
         global otherLogs, log, node_id, syncing, board
-        time.sleep(20)
+        time.sleep(5)
         if node_id == 1:
             syncing = True
             print("SYNCING")
@@ -269,21 +269,22 @@ try:
                 try:
                     print("delete")
                     print(uniqueID)
-                    del completeLog[str(uniqueID)]
+                    print(completeLog[uniqueID])
+                    del completeLog[uniqueID]
+                    pass
                 except Exception as e:
                     pass
 
 
             board = createBoardFromLog(completeLog)
-            sendNewLog(completeLog)
+            sendNewBoard()
             #propagate new board
             syncing = False  # set in a propapagation somewhere instead
         sync()
 
-    def sendNewLog(completeLog):   
+    def sendNewBoard():   
         global uniqueIDMap, board
         data = {
-            'completeLog': completeLog,
             'board': board,
             'uniqueIDMap': uniqueIDMap
         }
@@ -303,7 +304,7 @@ try:
         newBoard = {}
         index = 0
         for uniqueID, item in completeLog.items():
-            uniqueIDMap[uniqueID] = index
+            uniqueIDMap[uniqueID] = str(index)
             newBoard[str(index)] = item['entry']
             index = index + 1
         return newBoard
