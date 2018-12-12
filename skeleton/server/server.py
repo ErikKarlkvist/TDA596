@@ -126,21 +126,19 @@ try:
 
 
             new_entry = request.forms.get('entry')
-            uniqueID = "N" + str(node_id) + "LC" + str(lc)
+            uniqueID = "N" + str(node_id) + "LC" + str(lc) #create unique id. Example node_id=1 lc = 3 will give N1LC3
 
-            body = {
+            body = { #body is used as log element and sent to other nodes for unique id
                 'entry': new_entry,
                 'node': node_id,
                 'localClock': lc,
                 'action': "add",
                 'uniqueID': uniqueID
-            }
+            } 
 
             
             log.append(body)
             uniqueIDMap[uniqueID] = str(lc) # set unique id to lc position
-            # generate_id()
-            # you might want to change None here
             add_new_element_to_store(lc, new_entry)
             thread = Thread(target=propagate_to_vessels, args=(
                 "/propagate/add/"+str(lc), json.dumps(body), 'POST'))
@@ -156,7 +154,7 @@ try:
         return False
 
     @app.post('/board/<element_id:int>/')
-    def client_action_received(element_id):
+    def client_action_received(element_id): #we never propagate modify and delete, that's handled in sync
 
         global board, node_id, log, uniqueIDMap, lc
 
@@ -167,7 +165,7 @@ try:
         deleteStr = request.forms.get('delete')
 
         uniqueID = "unknown"
-        for key, val in uniqueIDMap.items():
+        for key, val in uniqueIDMap.items(): #find the unique id for the entry
             if str(val) == str(element_id):
                 print("found uniqueID" + key)
                 uniqueID = key
@@ -233,12 +231,12 @@ try:
 
     def sync():
         global otherLogs, log, node_id, syncing, board
-        time.sleep(5)
+        time.sleep(10)
         if not syncing:
             syncing = True
             print("SYNCING")
             start_receiving_logs()
-            completeLog = []
+            completeLog = [] #will at the end of the algorithm contain all log elements in order
             otherLogs[str(node_id)] = log[:] ## clone my log, otherwise we edit at same refernce
             # each log contains what they have sent
             allIsEmpty = False
@@ -251,30 +249,30 @@ try:
                 allIsEmpty = True
                 for vessel_id, otherLog in otherLogs.items():
                     if(len(otherLog) > 0):
-                        allIsEmpty = False  # if this is every reached we must loop again
-                        if shouldReplaceNextElem(nextElem, otherLog):
+                        allIsEmpty = False  # if this is every reached we must loop again, since we have more elements to edit
+                        if shouldReplaceNextElem(nextElem, otherLog): # check wether this element comes before other element, if so, add that first
                             nextElem = otherLog[0]
                             deletingVesselId = vessel_id
                             deletingLog = otherLog
 
-                # check lc of last, set nextElem lc to this
+                
                 if len(nextElem) > 0:
-                    if nextElem['action'] == "add":
-                        completeLog.append(nextElem) # add more elements
+                    if nextElem['action'] == "add": # add the enxt element to complete log
+                        completeLog.append(nextElem) 
                     elif nextElem['action'] == "modify":
-                        modifyLog[str(nextElem['uniqueID'])] = nextElem
+                        modifyLog[str(nextElem['uniqueID'])] = nextElem #fix modified later to not accidently override
                     else:
-                        deleteLog[str(nextElem['uniqueID'])] = nextElem
+                        deleteLog[str(nextElem['uniqueID'])] = nextElem #fix delete later to not accidently override
                     del deletingLog[0]
                     otherLogs[deletingVesselId] = deletingLog
             
-            for uniqueID, elem in modifyLog.items():
+            for uniqueID, elem in modifyLog.items(): #modify in correct order 
                 print(elem)
                 for index in range(len(completeLog)):
                     if completeLog[index]['uniqueID'] == uniqueID:
                         completeLog[index] = elem 
 
-            for uniqueID, elem in deleteLog.items():
+            for uniqueID, elem in deleteLog.items(): #delete last to make sure that even modified elemnts are deleted
                 for index in range(len(completeLog)):
                     if completeLog[index]['uniqueID'] == uniqueID:
                         del completeLog[index]
@@ -282,8 +280,7 @@ try:
 
 
             board = createBoardFromLog(completeLog)
-            sendNewBoard()
-            #propagate new board
+            sendNewBoard() #propagate new board and unique id map
             syncing = False  # set in a propapagation somewhere instead
         sync()
 
