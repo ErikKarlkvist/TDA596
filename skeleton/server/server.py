@@ -25,12 +25,6 @@ try:
     leader = 0
 
     
-    
-
-
-
-
-
     # ------------------------------------------------------------------------------------------------------
     # BOARD FUNCTIONS
     # Should nopt be given to the student
@@ -64,6 +58,50 @@ try:
         except Exception as e:
             print e
         return success
+
+
+# ------------------------------------------------------------------------------------------------------
+    # BYZANTINE FUNCTIONS
+    # ------------------------------------------------------------------------------------------------------
+
+    #Compute byzantine votes for round 1, by trying to create
+#a split decision.
+#input: 
+#   number of loyal nodes,
+#   number of total nodes,
+#   Decision on a tie: True or False 
+#output:
+#   A list with votes to send to the loyal nodes
+#   in the form [True,False,True,.....]
+    def compute_byzantine_vote_round1(no_loyal,no_total,on_tie):
+
+      result_vote = []
+      for i in range(0,no_loyal):
+        if i%2==0:
+          result_vote.append(not on_tie)
+        else:
+          result_vote.append(on_tie)
+      return result_vote
+
+#Compute byzantine votes for round 2, trying to swing the decision
+#on different directions for different nodes.
+#input: 
+#   number of loyal nodes,
+#   number of total nodes,
+#   Decision on a tie: True or False
+#output:
+#   A list where every element is a the vector that the 
+#   byzantine node will send to every one of the loyal ones
+#   in the form [[True,...],[False,...],...]
+    def compute_byzantine_vote_round2(no_loyal,no_total,on_tie):
+      
+      result_vectors=[]
+      for i in range(0,no_loyal):
+        if i%2==0:
+          result_vectors.append([on_tie]*no_total)
+        else:
+          result_vectors.append([not on_tie]*no_total)
+      return result_vectors
 
     # ------------------------------------------------------------------------------------------------------
     # DISTRIBUTED COMMUNICATIONS FUNCTIONS
@@ -108,26 +146,7 @@ try:
             success = contact_vessel('10.1.0.'+str(node_id+1), path, payload, req)
 
 
-    #--------------------------------------------------------------------------
-    def add_to_list(list): #adderar sitt node_id i listan man fått av förra vesseln
-        return list.append(node_id)
     
-    def send_list(list): #skickar listan till nästa vessel
-
-        propagate_to_next_vessel('/election/', json.dumps(list), req = 'POST')
-
-    def list_received(list):
-        global leader, node_id
-
-        for vessel_ip in list.items():
-            if (vessel_ip == node_id):
-                leader = node_id
-                #send_list(leader) ska på nåt sätt skicka runt vem ledaren är
-                break;
-
-        list = add_to_list(list)
-        send_list(list)
-
     #-----------------------------------------------------------------
 
     # ------------------------------------------------------------------------------------------------------
@@ -135,6 +154,14 @@ try:
     # ------------------------------------------------------------------------------------------------------
     # a single example (index) should be done for get, and one for post
     # ------------------------------------------------------------------------------------------------------
+    @app.get('/vote/result')
+        body = request.body.read()
+        print("request: "+ str(body)))
+
+   # @app.get('/board')
+    #def get
+
+
     @app.route('/')
     def index():
         global board, node_id
@@ -146,99 +173,22 @@ try:
         print board
         return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
     # ------------------------------------------------------------------------------------------------------
-    @app.post('/board')
-    def client_add_received():
-        
-        global board
-        try:
-            new_entry = request.forms.get('entry')
-            element_id = int(round(time.time()*1000000))
-            #generate_id()
-            add_new_element_to_store(element_id, new_entry) # you might want to change None here
-            thread = Thread(target = propagate_to_vessels, args = ("/propagate/add/"+str(element_id), new_entry, 'POST'))
-            thread.deamon = True
-            thread.start()
-            return "Latest entry: " + new_entry #Returning true gives a weird error so we return a describing string instead
-
-        except Exception as e:
-            print e
-        return False
-
-    @app.post('/board/<element_id:int>/')
-    def client_action_received(element_id):
-
-        global board, node_id
-
-        action = "" #action that determines modify or delete to be sent to propagate_to_vessels()
-
-        entryStr = request.forms.get('entry') #used 'forms' to get the values of entry and delete
-        deleteStr = request.forms.get('delete')
-
-
-        try:
-            if(deleteStr == "1"): 
-                action = "delete" 
-                delete_element_from_store(element_id)
-
-            if(deleteStr == "0"):
-                action = "modify"
-                modify_element_in_store(element_id, entryStr)
-
-            if()
-
-            t = Thread(target = propagate_to_vessels,args =(('/propagate/'+ action +'/' + str(element_id)), entryStr))
-            t.deamon = True
-            t.start()
-
-            return "Action successfull" #Returning true gives a weird error so we return a describing string instead
-        except Exception as e:
-            print e
-        return False
-        
-
-    @app.post('/propagate/<action>/<element_id>')
-    def propagation_received(action, element_id):
-
-        entry = request.body.read()
-
-        if(action == "delete"):
-            delete_element_from_store(element_id)
-
-        if(action == "modify"):
-            modify_element_in_store(element_id, entry)
-
-        if(action == "add"):
-            add_new_element_to_store(element_id, entry)
-
-    @app.post('/election/'):
-    def election_received():
+    @app.post('/vote/attack')
+    def client_attack_received():
         body = request.body.read()
-        prev_list = json.loads(list)
+        print("Body: " + str(body))
+         
 
-        print("The previous list: " + prev_list)
+    @app.post('/vote/retreat')
+    def client_retreat_received(element_id):
+        print("Retreat")
+        
+        
 
-        list_received(prev_list)
+    @app.post('/vote/byzantine')
+    def client_byzantine_received(action, element_id):
+        print("byzantine")
 
-
-
-
-    def generate_id():
-        global board
-        id = 0
-        rs = (len(vessel_list)+1) # A start that is higher than the amount of vessels to avoid collisions
-        re = 10000001 #random end
-        if(len(board) == 0): #if board has length 0, just set random number
-            id = random.randint(rs,re)
-        else:
-            id = board.keys()[0] #access first key in board just to have a key that already exist in while loop
-            while(id in board): #if id is in board, retry until it's not
-                id = random.randint(rs,re)
-        return id
-
-    def initiate_election():
-
-        own_list = []
-        list_received(own_list)
 
         
     # ------------------------------------------------------------------------------------------------------
@@ -261,7 +211,6 @@ try:
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
-            initiate_election()
             run(app, host=vessel_list[str(node_id)], port=port)
 
         except Exception as e:
