@@ -21,6 +21,8 @@ import requests
 try:
     app = Bottle()
 
+    board = {}
+
     result_vote = []
     my_vector = []
 
@@ -105,9 +107,21 @@ try:
 
 
     def add_to_vector(action):
-        global my_vector
+        global my_vector, vessel_list, result_vote
+        no_loyal = 0
+        no_total = 0
+        if(len(my_vector) >= len(vessel_list)):
+            for i, element in enumerate(my_vector):
+                no_total = no_total + 1
+                if (str(element) == "attack") or (str(element) == "retreat"):
+                    no_loyal = no_loyal + 1
 
-        my_vector.append(str(my_vector))
+           result_vote = compute_byzantine_vote_round1(no_loyal, no_total, True)  
+           print("RESULT VOTE: " + str(result_vote))     
+
+        else: 
+            my_vector.append(str(action))
+            print("THE VECTOR: " + str(my_vector))
 
 
 
@@ -142,7 +156,7 @@ try:
     @app.post('/vote/attack')
     def client_attack_received():
         attack = request.forms.get('Attack')
-        t = Thread(target = propagate_to_vessels, args = "/propagate/attack", None, 'POST')
+        t = Thread(target = propagate_to_vessels, args = ("/propagate/attack", None, 'POST'))
         t.deamon = True
         t.start()
         add_to_vector("attack")
@@ -155,6 +169,13 @@ try:
     def client_retreat_received():
         retreat = request.forms.get('Retreat')
         print("Retreat: " + str(retreat))
+
+        attack = request.forms.get('Retreat')
+        t = Thread(target = propagate_to_vessels, args = ("/propagate/retreat", None, 'POST'))
+        t.deamon = True
+        t.start()
+        add_to_vector("retreat")
+        
         
         
 
@@ -163,10 +184,18 @@ try:
         byz = request.forms.get('Byzantine')
         print("Byzantine: " + str(byz))
 
-    @app.get('/propagate/<action>')
+        byzantine = request.forms.get('Byzantine')
+        t = Thread(target = propagate_to_vessels, args = ("/propagate/byzantine", None, 'POST'))
+        t.deamon = True
+        t.start()
+        add_to_vector("byzantine")
+
+
+
+    @app.post('/propagate/<action>')
     def propagation_received(action):
         add_to_vector(action)
-        print("ACTION PROPAGATED: " + action)
+        print("ACTION PROPAGATED: " + str(action))
 
         
 
