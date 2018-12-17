@@ -24,7 +24,14 @@ try:
     board = {}
 
     result_vote = []
-    my_vector = []
+    my_vector_r1 = []
+    my_vectors_r2 = []
+
+    no_loyal = 0
+    no_total = 0
+
+    traitor = False
+
 
 
 
@@ -47,9 +54,9 @@ try:
 
         for i in range(0,no_loyal):
             if i%2==0:
-                result_vote.append(not on_tie)
+                result_vote.append(str(not on_tie))
             else:
-                result_vote.append(on_tie)
+                result_vote.append(str(on_tie))
         return result_vote
 
 #Compute byzantine votes for round 2, trying to swing the decision
@@ -107,25 +114,52 @@ try:
 
 
     def add_to_vector(action):
-        global my_vector, vessel_list, result_vote
-        no_loyal = 0
-        no_total = 0
-        if(len(my_vector) >= len(vessel_list)):
-            for i, element in enumerate(my_vector):
-                no_total = no_total + 1
-                if (str(element) == "attack") or (str(element) == "retreat"):
-                    no_loyal = no_loyal + 1
+        global my_vector_r1, vessel_list, result_vote, no_loyal, no_total
 
-           result_vote = compute_byzantine_vote_round1(no_loyal, no_total, True)  
-           print("RESULT VOTE: " + str(result_vote))     
+        if(str(action) != "byzantine"):
+            my_vector_r1.append(action)
 
-        else: 
-            my_vector.append(str(action))
-            print("THE VECTOR: " + str(my_vector))
+        if(traitor): #if this node is a traitor, and the other generals has sent their values
+            if(len(my_vector_r1) >= len(vessel_list)-1):
+                no_loyal = len(my_vector_r1)
+                no_total = len(vessel_list)
+                tcount = 0
+                fcount = 0
+                myVote = "True"
 
+                for i,el in enumerate(my_vector_r1):
+                    if el:
+                        tcount = tcount + 1
+                    else:
+                        fcount = fcount + 1
+                if tcount > fcount:
+                    myVote = "False"
+                print("Traitor vote: " + myVote)
 
+                my_vector_r1.append(myVote)
+                print("TRaitor vector: " + str(my_vector_r1))
+                t = Thread(target = propagate_to_vessels, args = ("/propagate/" + str(myVote), None, 'POST'))
+                t.deamon = True
+                t.start()
 
-    
+                result_vote = compute_byzantine_vote_round1(no_loyal, no_total, True)
+                result_vote.append(myVote)
+                send_vector(result_vote)
+
+        elif(len(my_vector_r1) >= len(vessel_list)):
+            send_vector(my_vector_r1)
+
+   # def calculate_result_for_loyal(vector1, vector2, vector3, vector4):
+
+       # for i, (e1, e2, e3, e4) in enumerate(zip(vector1, vector2, vector3, vector4)): #kolla om nåt element har en majoritet
+       #     if()
+
+    def send_vector(vector):
+        print("HÄR ÄR DEN: "+ str(json.dumps(vector)))
+        t = Thread(target = propagate_to_vessels, args = ('/propagate/vector', json.dumps(vector), 'POST'))
+        t.deamon = True
+        t.start()
+
     #-----------------------------------------------------------------
 
     # ------------------------------------------------------------------------------------------------------
@@ -155,49 +189,48 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/vote/attack')
     def client_attack_received():
-        attack = request.forms.get('Attack')
-        t = Thread(target = propagate_to_vessels, args = ("/propagate/attack", None, 'POST'))
+        attack = request.forms.get('Attack') # ATTACK = TRUE
+        t = Thread(target = propagate_to_vessels, args = ("/propagate/True", None, 'POST'))
         t.deamon = True
         t.start()
-        add_to_vector("attack")
+        add_to_vector("True")
         #body = request.body.read()
         #requestForm = request.forms
         print("Attack: " + str(attack))
          
 
     @app.post('/vote/retreat')
-    def client_retreat_received():
+    def client_retreat_received(): # RETREAT = FALSE
         retreat = request.forms.get('Retreat')
         print("Retreat: " + str(retreat))
 
-        attack = request.forms.get('Retreat')
-        t = Thread(target = propagate_to_vessels, args = ("/propagate/retreat", None, 'POST'))
+        t = Thread(target = propagate_to_vessels, args = ("/propagate/False", None, 'POST'))
         t.deamon = True
         t.start()
-        add_to_vector("retreat")
+        add_to_vector("False")
         
         
         
 
     @app.post('/vote/byzantine')
     def client_byzantine_received():
-        byz = request.forms.get('Byzantine')
-        print("Byzantine: " + str(byz))
-
-        byzantine = request.forms.get('Byzantine')
-        t = Thread(target = propagate_to_vessels, args = ("/propagate/byzantine", None, 'POST'))
-        t.deamon = True
-        t.start()
+        global no_total, no_loyal, traitor
+        traitor = True
         add_to_vector("byzantine")
 
-
+    
 
     @app.post('/propagate/<action>')
     def propagation_received(action):
         add_to_vector(action)
         print("ACTION PROPAGATED: " + str(action))
 
-        
+    @app.post('/propagate/vector')
+    def vector_received():
+        global my_vectors_r2
+        my_vectors_r2.append(json.loads(request.body.read())) #add vector to list
+        print("VECTOR RECEIVED: " + str(my_vectors_r2))
+
 
 
         
@@ -217,7 +250,7 @@ try:
         node_id = args.nid
         vessel_list = dict()
         # We need to write the other vessels IP, based on the knowledge of their number
-        for i in range(1, args.nbv):
+        for i in range(1, args.nbv+1):
             vessel_list[str(i)] = '10.1.0.{}'.format(str(i))
 
         try:
