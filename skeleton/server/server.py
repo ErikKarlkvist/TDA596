@@ -21,43 +21,9 @@ import requests
 try:
     app = Bottle()
 
-    board = {}
-    leader = 0
+    result_vote = []
+    my_vector = []
 
-    
-    # ------------------------------------------------------------------------------------------------------
-    # BOARD FUNCTIONS
-    # Should nopt be given to the student
-    # ------------------------------------------------------------------------------------------------------
-    def add_new_element_to_store(entry_sequence, element, is_propagated_call=False):
-        global board, node_id
-        success = False
-        try:
-            board[str(entry_sequence)] = element
-            success = True
-        except Exception as e:
-            print e
-        return success
-
-    def modify_element_in_store(entry_sequence, modified_element, is_propagated_call = False):
-        global board, node_id
-        success = False
-        try:
-            board[str(entry_sequence)] = modified_element
-            success = True
-        except Exception as e:
-            print e
-        return success
-
-    def delete_element_from_store(entry_sequence, is_propagated_call = False):
-        global board, node_id
-        success = False
-        try:
-            del board[str(entry_sequence)]
-            success = True
-        except Exception as e:
-            print e
-        return success
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -75,13 +41,14 @@ try:
 #   in the form [True,False,True,.....]
     def compute_byzantine_vote_round1(no_loyal,no_total,on_tie):
 
-      result_vote = []
-      for i in range(0,no_loyal):
-        if i%2==0:
-          result_vote.append(not on_tie)
-        else:
-          result_vote.append(on_tie)
-      return result_vote
+        global result_vote
+
+        for i in range(0,no_loyal):
+            if i%2==0:
+                result_vote.append(not on_tie)
+            else:
+                result_vote.append(on_tie)
+        return result_vote
 
 #Compute byzantine votes for round 2, trying to swing the decision
 #on different directions for different nodes.
@@ -136,14 +103,12 @@ try:
                 if not success:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
-    def propagate_to_next_vessel(path, payload = None, req = 'POST'):
 
-        global vessel_list, node_id
+    def add_to_vector(action):
+        global my_vector
 
-        if(node_id == (len(vessel_list)-1):
-            success = contact_vessel('10.1.0.1', path, payload, req)
-        else:
-            success = contact_vessel('10.1.0.'+str(node_id+1), path, payload, req)
+        my_vector.append(str(my_vector))
+
 
 
     
@@ -155,8 +120,9 @@ try:
     # a single example (index) should be done for get, and one for post
     # ------------------------------------------------------------------------------------------------------
     @app.get('/vote/result')
+    def get_result():
         body = request.body.read()
-        print("request: "+ str(body)))
+        print("request: "+ str(body))
 
    # @app.get('/board')
     #def get
@@ -175,19 +141,34 @@ try:
     # ------------------------------------------------------------------------------------------------------
     @app.post('/vote/attack')
     def client_attack_received():
-        body = request.body.read()
-        print("Body: " + str(body))
+        attack = request.forms.get('Attack')
+        t = Thread(target = propagate_to_vessels, args = "/propagate/attack", None, 'POST')
+        t.deamon = True
+        t.start()
+        add_to_vector("attack")
+        #body = request.body.read()
+        #requestForm = request.forms
+        print("Attack: " + str(attack))
          
 
     @app.post('/vote/retreat')
-    def client_retreat_received(element_id):
-        print("Retreat")
+    def client_retreat_received():
+        retreat = request.forms.get('Retreat')
+        print("Retreat: " + str(retreat))
         
         
 
     @app.post('/vote/byzantine')
-    def client_byzantine_received(action, element_id):
-        print("byzantine")
+    def client_byzantine_received():
+        byz = request.forms.get('Byzantine')
+        print("Byzantine: " + str(byz))
+
+    @app.get('/propagate/<action>')
+    def propagation_received(action):
+        add_to_vector(action)
+        print("ACTION PROPAGATED: " + action)
+
+        
 
 
         
