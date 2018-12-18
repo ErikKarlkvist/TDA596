@@ -13,6 +13,7 @@ import argparse
 import random
 import time
 from threading import Thread
+import copy
 
 from bottle import Bottle, run, request, template, HTTPResponse
 from threading import Thread
@@ -29,6 +30,7 @@ try:
 
     no_loyal = 0
     no_total = 0
+    on_tie = False
 
     traitor = False
 
@@ -52,7 +54,7 @@ try:
 
         global result_vote
 
-        for i in range(0,no_loyal):
+        for i in range(0,no_total):
             if i%2==0:
                 result_vote.append(str(not on_tie))
             else:
@@ -114,7 +116,7 @@ try:
 
 
     def add_to_vector(action):
-        global my_vector_r1, vessel_list, result_vote, no_loyal, no_total
+        global my_vector_r1, vessel_list, result_vote, no_loyal, no_total, on_tie
 
         if(str(action) != "byzantine"):
             my_vector_r1.append(action)
@@ -134,25 +136,44 @@ try:
                         fcount = fcount + 1
                 if tcount > fcount:
                     myVote = "False"
+                if tcount == fcount:
+                    on_tie = True
                 print("Traitor vote: " + myVote)
 
                 my_vector_r1.append(myVote)
-                print("TRaitor vector: " + str(my_vector_r1))
+                print("Traitor vector: " + str(my_vector_r1))
                 t = Thread(target = propagate_to_vessels, args = ("/propagate/" + str(myVote), None, 'POST'))
                 t.deamon = True
                 t.start()
 
-                result_vote = compute_byzantine_vote_round1(no_loyal, no_total, True)
-                result_vote.append(myVote)
+                my_vector_r1 = compute_byzantine_vote_round1(no_loyal, no_total, on_tie)
                 send_vector(result_vote)
 
         elif(len(my_vector_r1) >= len(vessel_list)):
             send_vector(my_vector_r1)
 
-   # def calculate_result_for_loyal(vector1, vector2, vector3, vector4):
+    def calculate_result_for_loyal(vectors):
 
-       # for i, (e1, e2, e3, e4) in enumerate(zip(vector1, vector2, vector3, vector4)): #kolla om nåt element har en majoritet
-       #     if()
+        newlist = copy.deepcopy(vectors)
+        result = []
+        length = len(newlist[0])
+
+        while(len(newlist[len(newlist)-1]) > 0):
+            tcount = 0
+            for i, l in enumerate(newlist):
+                if l[0] == "True":
+                    tcount = tcount + 1
+                del l[0]
+            if tcount > length - tcount:
+                result.append("True")
+            else:
+                result.append("False")
+
+        print("RESULT FOR LOYAL: " + str(result))
+
+
+       #for i, (e1, e2, e3, e4) in enumerate(zip(vector1, vector2, vector3, vector4)): #kolla om nåt element har en majoritet
+         #   if()
 
     def send_vector(vector):
         print("HÄR ÄR DEN: "+ str(json.dumps(vector)))
@@ -222,14 +243,28 @@ try:
 
     @app.post('/propagate/<action>')
     def propagation_received(action):
+        global no_loyal, no_total, on_tie
+
         add_to_vector(action)
         print("ACTION PROPAGATED: " + str(action))
 
     @app.post('/propagate/vector')
     def vector_received():
-        global my_vectors_r2
+        global my_vectors_r2, my_vector_r1
+        
+        results_vectors = []
+
         my_vectors_r2.append(json.loads(request.body.read())) #add vector to list
-        print("VECTOR RECEIVED: " + str(my_vectors_r2))
+
+        if(!traitor):
+            if(len(my_vectors_r2)==len(vessel_list)-1):
+                my_vectors_r2.append(my_vector_r1)
+                calculate_result_for_loyal(my_vectors_r2)
+                print("VECTOR RECEIVED AFTER method: " + str(my_vectors_r2))
+        else:
+            results_vectors = compute_byzantine_vote_round2(no_total, no_loyal, on_tie)
+           
+
 
 
 
