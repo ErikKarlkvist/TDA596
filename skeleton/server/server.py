@@ -111,8 +111,7 @@ try:
                 success = contact_vessel(vessel_ip, path, payload, req)
 
                 if not success:
-                    print "\n\nCould not contact vessel {}\n\n".format(
-                        vessel_id)
+                    print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
     def add_to_vector(action, node_id):
         global my_vector_r1, vessel_list, result_vote, on_tie, node_id
@@ -125,21 +124,18 @@ try:
                 no_loyal = len(my_vector_r1)
                 no_total = len(vessel_list)
 
-                action = calculate_action_to_take(
-                    my_vector_r1)  # sets global on_tie
+                action = calculate_action_to_take(my_vector_r1)  # sets global on_tie
                 print("ON TIE: " + str(on_tie))
 
                 print("Traitor vector: " + str(my_vector_r1))
 
-                result_vote = compute_byzantine_vote_round1(
-                    no_loyal, no_total, on_tie)
+                result_vote = compute_byzantine_vote_round1(no_loyal, no_total, on_tie)
                 print("Result vote: " + str(result_vote))
                 for i, val in enumerate(result_vote):
                     vessel = i + 1
                     if vessel == node_id:
                         vessel = vessel + 1
-                    contact_vessel("10.1.0."+str(vessel),
-                                   "/propagate/"+str(val), None, 'POST')
+                    contact_vessel("10.1.0."+str(vessel), "/propagate/"+str(val), None, 'POST')
 
         elif(len(my_vector_r1) >= len(vessel_list)):
             print("FIRST ROUND MY LIST: " + str(my_vector_r1))
@@ -192,8 +188,7 @@ try:
     def send_vector(vector):
         global node_id
         print("Vektorn som skickas till de andra: " + str(json.dumps(vector)))
-        t = Thread(target=propagate_to_vessels, args=(
-            '/propagate/vector/' + str(node_id), json.dumps(vector), 'POST'))
+        t = Thread(target=propagate_to_vessels, args=('/propagate/vector/' + str(node_id), json.dumps(vector), 'POST'))
         t.deamon = True
         t.start()
 
@@ -242,8 +237,7 @@ try:
         if not has_voted:
             has_voted = True
             attack = request.forms.get('Attack')  # ATTACK = TRUE
-            t = Thread(target=propagate_to_vessels, args=(
-                "/propagate/True/" + str(node_id), None, 'POST'))
+            t = Thread(target=propagate_to_vessels, args=("/propagate/True/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
             add_to_vector(True, str(node_id))
@@ -260,8 +254,7 @@ try:
             retreat = request.forms.get('Retreat')
             print("Retreat: " + str(retreat))
             result = "WAITING FOR OTHERS TO VOTE"
-            t = Thread(target=propagate_to_vessels, args=(
-                "/propagate/False/" + str(node_id), None, 'POST'))
+            t = Thread(target=propagate_to_vessels, args=("/propagate/False/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
             add_to_vector(False, str(node_id))
@@ -299,15 +292,13 @@ try:
                 no_total = len(vessel_list)
                 print("NO TOTAL" + str(no_total))
                 print("NO LOYAR" + str(no_loyal))
-                result_vectors = compute_byzantine_vote_round2(
-                    no_loyal, no_total, on_tie)
+                result_vectors = compute_byzantine_vote_round2(no_loyal, no_total, on_tie)
                 print("RESULT VECTORS: " + str(result_vectors))
                 for i, val in enumerate(result_vectors):
                     vessel = i + 1
                     if vessel == node_id:
                         vessel = vessel + 1
-                    contact_vessel(
-                        "10.1.0."+str(vessel), "/propagate/vector/" + str(node_id), json.dumps(val), 'POST')
+                    contact_vessel("10.1.0."+str(vessel), "/propagate/vector/" + str(node_id), json.dumps(val), 'POST')
                 reset()
             else:
                 my_vectors_r2.append(my_vector_r1)
@@ -325,12 +316,9 @@ try:
         global vessel_list, node_id, app
 
         port = 80
-        parser = argparse.ArgumentParser(
-            description='Your own implementation of the distributed blackboard')
-        parser.add_argument('--id', nargs='?', dest='nid',
-                            default=1, type=int, help='This server ID')
-        parser.add_argument('--vessels', nargs='?', dest='nbv', default=1,
-                            type=int, help='The total number of vessels present in the system')
+        parser = argparse.ArgumentParser(description='Your own implementation of the distributed blackboard')
+        parser.add_argument('--id', nargs='?', dest='nid', default=1, type=int, help='This server ID')
+        parser.add_argument('--vessels', nargs='?', dest='nbv', default=1, type=int, help='The total number of vessels present in the system')
         args = parser.parse_args()
         node_id = args.nid
         vessel_list = dict()
