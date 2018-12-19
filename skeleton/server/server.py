@@ -199,7 +199,7 @@ try:
     def reset(): #reset values so that a new voting can begin
         global has_voted, my_vector_r1, my_vectors_r2, on_tie, traitor
 
-        my_vector_r1 = []
+        my_vector_r1 = dict()
         my_vectors_r2 = []
 
         on_tie = False
@@ -244,7 +244,7 @@ try:
             t = Thread(target = propagate_to_vessels, args = ("/propagate/True/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
-            add_to_vector(True)
+            add_to_vector(True, str(node_id))
             result = "WAITING FOR OTHERS TO VOTE"
             #body = request.body.read()
             #requestForm = request.forms
@@ -261,16 +261,16 @@ try:
             t = Thread(target = propagate_to_vessels, args = ("/propagate/False/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
-            add_to_vector(False)
+            add_to_vector(False, str(node_id))
 
     @app.post('/vote/byzantine')
     def client_byzantine_received():
-        global no_total, no_loyal, traitor, has_voted, result
+        global no_total, no_loyal, traitor, has_voted, result, node_id
         if not has_voted:
             has_voted = True
             traitor = True
             result = "TRAITOR!"
-            add_to_vector("byzantine", "")
+            add_to_vector("byzantine", str(node_id))
 
     @app.post('/propagate/<action>/<element_id>')
     def propagation_received(action, element_id):
