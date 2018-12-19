@@ -25,7 +25,7 @@ try:
     board = {}
 
     result_vote = []
-    my_vector_r1 = []
+    my_vector_r1 = dict()
     my_vectors_r2 = []
 
     on_tie = False
@@ -114,11 +114,11 @@ try:
                     print "\n\nCould not contact vessel {}\n\n".format(vessel_id)
 
 
-    def add_to_vector(action):
+    def add_to_vector(action, node_id):
         global my_vector_r1, vessel_list, result_vote, on_tie, node_id
 
         if(str(action) != "byzantine"):
-            my_vector_r1.append(action)
+            my_vector_r1[node_id] = action
 
         if(traitor): #if this node is a traitor, and the other generals has sent their values
             if(len(my_vector_r1) >= len(vessel_list)-1): #can only handle one traitor
@@ -149,7 +149,7 @@ try:
         global on_tie
         tcount = 0
         fcount = 0
-        for i,el in enumerate(my_vector_r1):
+        for key,el in my_vector_r1.iteritems():
             if el:
                 tcount = tcount + 1
             else:
@@ -190,8 +190,9 @@ try:
          #   if()
 
     def send_vector(vector):
+        global node_id
         print("Vektorn som skickas till de andra: "+ str(json.dumps(vector)))
-        t = Thread(target = propagate_to_vessels, args = ('/propagate/vector', json.dumps(vector), 'POST'))
+        t = Thread(target = propagate_to_vessels, args = ('/propagate/vector/' + str(node_id), json.dumps(vector), 'POST'))
         t.deamon = True
         t.start()
 
@@ -234,13 +235,13 @@ try:
         print board
         return template('server/boardcontents_template.tpl',board_title='Vessel {}'.format(node_id), board_dict=sorted(board.iteritems()))
     # ------------------------------------------------------------------------------------------------------
-    @app.post('/vote/attack')
+    @app.post('/vote/attack/')
     def client_attack_received():
-        global has_voted, result
+        global has_voted, result, node_id
         if not has_voted:
             has_voted = True
             attack = request.forms.get('Attack') # ATTACK = TRUE
-            t = Thread(target = propagate_to_vessels, args = ("/propagate/True", None, 'POST'))
+            t = Thread(target = propagate_to_vessels, args = ("/propagate/True/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
             add_to_vector(True)
@@ -249,15 +250,15 @@ try:
             #requestForm = request.forms
             print("Attack: " + str(attack))
          
-    @app.post('/vote/retreat')
-    def client_retreat_received(): # RETREAT = FALSE
-        global has_voted, result
+    @app.post('/vote/retreat/')
+    def client_retreat_received(element_id): # RETREAT = FALSE
+        global has_voted, result, node_id
         if not has_voted:
             has_voted = True
             retreat = request.forms.get('Retreat')
             print("Retreat: " + str(retreat))
             result = "WAITING FOR OTHERS TO VOTE"
-            t = Thread(target = propagate_to_vessels, args = ("/propagate/False", None, 'POST'))
+            t = Thread(target = propagate_to_vessels, args = ("/propagate/False/" + str(node_id), None, 'POST'))
             t.deamon = True
             t.start()
             add_to_vector(False)
@@ -269,20 +270,20 @@ try:
             has_voted = True
             traitor = True
             result = "TRAITOR!"
-            add_to_vector("byzantine")
+            add_to_vector("byzantine", "")
 
-    @app.post('/propagate/<action>')
-    def propagation_received(action):
+    @app.post('/propagate/<action>/<element_id>')
+    def propagation_received(action, element_id):
         global no_loyal, no_total, on_tie
         val = False
         if str(action) == "True":
             val = True
-        add_to_vector(val)
+        add_to_vector(val, element_id)
         print("ACTION PROPAGATED: " + str(val))
 
-    @app.post('/propagate/vector')
-    def vector_received():
-        global my_vectors_r2, my_vector_r1, vessel_list
+    @app.post('/propagate/vector/<element_id>')
+    def vector_received(element_id):
+        global my_vectors_r2, my_vector_r1, vessel_list, node_id
 
         results_vectors = []
 
@@ -301,7 +302,7 @@ try:
                     vessel = i + 1
                     if vessel == node_id:
                         vessel = vessel + 1
-                    contact_vessel("10.1.0."+str(vessel), "/propagate/vector", json.dumps(val), 'POST')
+                    contact_vessel("10.1.0."+str(vessel), "/propagate/vector/" + str(node_id), json.dumps(val), 'POST')
                 reset()
             else: 
                 my_vectors_r2.append(my_vector_r1)
